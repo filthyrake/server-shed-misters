@@ -3,6 +3,7 @@
 🌡️ **Automated temperature and humidity control system for server sheds**
 
 A production-ready system that monitors SwitchBot Hub 2 sensors and controls Rachio Smart Hose Timer misters to keep your server environment cool and humid.
+Ok ok ok, I know, this all sounds totally unhinged.  I have a backyard solar-powered server shed, and live in an EXTREMELY hot and dry climate.  To help with cooling, I have a DIY swamp cooler rigged up in the shed - the evaporative cooling works absolute wonders.  This is a service designed to automate my use of it.  Obviously the thing has been designed with my very specific and unusual use-case in mind, but maybe you can find something neat here.
 
 ## Features
 
