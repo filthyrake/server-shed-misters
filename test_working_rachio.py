@@ -122,7 +122,7 @@ def find_working_zone():
             else:
                 print("\n✗ No devices found on this account")
                 print("\nYour JavaScript code suggests there should be a zone that can be controlled.")
-                print("The zone ID in your JS (5c471f32-686c-41c1-b445-5a21cefd5060) is actually your person ID.")
+                print("The zone ID in your JS was actually your person ID.")
                 print("\nPossible issues:")
                 print("1. The Rachio device might be on a different account")
                 print("2. The API token might not have the right permissions")

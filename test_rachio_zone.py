@@ -7,14 +7,18 @@ import time
 
 load_dotenv()
 
-# From your JavaScript code, it looks like this might be a zone ID, not a person ID
-ZONE_ID_FROM_JS = "5c471f32-686c-41c1-b445-5a21cefd5060"
+# Zone ID from environment variables (no fallback)
+ZONE_ID_FROM_JS = os.environ.get("RACHIO_ZONE_ID")
 
 def test_rachio_zone():
     rachio_token = os.environ.get("RACHIO_API_TOKEN")
     
     if not rachio_token:
         print("Missing RACHIO_API_TOKEN")
+        return
+        
+    if not ZONE_ID_FROM_JS:
+        print("Missing RACHIO_ZONE_ID")
         return
     
     headers = {
