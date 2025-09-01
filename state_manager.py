@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,11 @@ class StateManager:
         last_start = self.state.get("last_mister_start")
         if last_start:
             try:
-                return datetime.fromisoformat(last_start)
+                dt = datetime.fromisoformat(last_start)
+                # If the datetime is naive (no timezone), assume it's local time
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=ZoneInfo("localtime"))
+                return dt
             except:
                 pass
         return None
@@ -113,7 +118,7 @@ class StateManager:
     
     def graceful_shutdown(self):
         """Record graceful shutdown"""
-        self.update_state(last_shutdown_time=datetime.now().isoformat())
+        self.update_state(last_shutdown_time=datetime.now(ZoneInfo("localtime")).isoformat())
         logger.info("Graceful shutdown recorded")
     
     def get_stats(self) -> Dict[str, Any]:

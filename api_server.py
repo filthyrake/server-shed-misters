@@ -5,6 +5,7 @@ import threading
 import time
 from datetime import datetime
 from typing import Optional, Dict, Any
+from zoneinfo import ZoneInfo
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -48,7 +49,7 @@ class MisterControllerState:
         self.is_misting = False
         self.last_reading = None
         self.last_reading_time = None
-        self.start_time = datetime.now()
+        self.start_time = datetime.now(ZoneInfo("localtime"))
         self.controller_thread = None
         self.stop_event = threading.Event()
         
@@ -109,7 +110,7 @@ class MisterControllerState:
             return False
         
         if self.last_mister_start:
-            time_since = (datetime.now() - self.last_mister_start).total_seconds()
+            time_since = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
             if time_since < self.config.cooldown_seconds:
                 return False
         
@@ -126,7 +127,7 @@ class MisterControllerState:
         humid_enough = reading.humidity > self.config.humidity_threshold_high
         
         if self.last_mister_start:
-            time_running = (datetime.now() - self.last_mister_start).total_seconds()
+            time_running = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
             max_duration = time_running >= self.config.mister_duration_seconds
             
             return cool_enough or humid_enough or max_duration
@@ -145,14 +146,14 @@ class MisterControllerState:
                     
                     if reading:
                         self.last_reading = reading
-                        self.last_reading_time = datetime.now()
+                        self.last_reading_time = datetime.now(ZoneInfo("localtime"))
                         
                         if self.should_start_misting(reading):
                             logger.warning(f"Starting mister - Temp: {reading.temperature:.1f}°F, Humidity: {reading.humidity}%")
                             
                             if self.rachio.start_watering(self.valve_id, self.config.mister_duration_seconds):
                                 self.is_misting = True
-                                self.last_mister_start = datetime.now()
+                                self.last_mister_start = datetime.now(ZoneInfo("localtime"))
                                 self.state_manager.record_mister_start(self.last_mister_start)
                                 logger.info("Mister started successfully")
                             else:
@@ -479,7 +480,7 @@ async def get_web_ui():
 @app.get("/api/status")
 async def get_status() -> StatusResponse:
     """Get current system status"""
-    uptime = (datetime.now() - state.start_time).total_seconds()
+    uptime = (datetime.now(ZoneInfo("localtime")) - state.start_time).total_seconds()
     
     return StatusResponse(
         is_running=state.is_running,
@@ -544,7 +545,7 @@ async def start_controller() -> ControlResponse:
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    return {"status": "healthy", "timestamp": datetime.now(ZoneInfo("localtime")).isoformat()}
 
 if __name__ == "__main__":
     import uvicorn

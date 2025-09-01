@@ -23,6 +23,8 @@ services:
       - COOLDOWN_SECONDS=${COOLDOWN_SECONDS:-300}
     volumes:
       - mister-data:/app/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

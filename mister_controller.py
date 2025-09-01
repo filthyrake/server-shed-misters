@@ -13,6 +13,7 @@ import logging
 from dataclasses import dataclass
 from enum import Enum
 from dotenv import load_dotenv
+from zoneinfo import ZoneInfo
 
 logging.basicConfig(
     level=logging.INFO,
@@ -113,7 +114,7 @@ class SwitchBotAPI:
                 return SensorReading(
                     temperature=temp_fahrenheit,
                     humidity=float(status.get("humidity", 0)),
-                    timestamp=datetime.now()
+                    timestamp=datetime.now(ZoneInfo("localtime"))
                 )
             except (KeyError, ValueError) as e:
                 logger.error(f"Failed to parse Hub2 data: {e}")
@@ -196,7 +197,7 @@ class MisterController:
             return False
             
         if self.last_mister_start:
-            time_since_last = (datetime.now() - self.last_mister_start).total_seconds()
+            time_since_last = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
             if time_since_last < self.config.cooldown_seconds:
                 logger.debug(f"In cooldown period. {self.config.cooldown_seconds - time_since_last:.0f} seconds remaining")
                 return False
@@ -214,7 +215,7 @@ class MisterController:
         humidity_ok = reading.humidity > self.config.humidity_threshold_high
         
         if self.last_mister_start:
-            time_running = (datetime.now() - self.last_mister_start).total_seconds()
+            time_running = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
             max_duration_reached = time_running >= self.config.mister_duration_seconds
             
             return (temp_ok or humidity_ok) or max_duration_reached
@@ -226,7 +227,7 @@ class MisterController:
         success = self.rachio.start_zone(self.rachio_zone_id, self.config.mister_duration_seconds)
         if success:
             self.is_misting = True
-            self.last_mister_start = datetime.now()
+            self.last_mister_start = datetime.now(ZoneInfo("localtime"))
             logger.info("Mister started successfully")
         else:
             logger.error("Failed to start mister")
