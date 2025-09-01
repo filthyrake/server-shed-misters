@@ -23,7 +23,7 @@ cp .env.example .env  # Then edit with real credentials
 python api_server.py
 
 # Standalone controller (direct sensor monitoring without web UI)
-python final_mister_controller.py
+python standalone_controller.py
 
 # Docker development (auto-reload enabled)
 docker-compose up -d
@@ -32,15 +32,16 @@ docker-compose up -d
 docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
-### Testing and Debugging
+### Setup and Diagnostic Tools
 ```bash
-# Test API connections and find device IDs
-python test_connections.py      # SwitchBot devices
-python get_smart_valves.py      # Rachio Smart Hose Timer
-python debug_switchbot_temp.py  # Temperature conversion debugging
+# Verify API credentials and connections
+python tools/verify_setup.py
 
-# Test individual API endpoints
-python find_rachio_devices.py   # Comprehensive Rachio discovery
+# Interactive setup wizard  
+python tools/setup_wizard.py
+
+# Find all available devices and IDs
+python tools/find_devices.py
 ```
 
 ### Production Deployment

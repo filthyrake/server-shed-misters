@@ -98,14 +98,32 @@ COOLDOWN_SECONDS=300  # seconds (5 minutes)
 3. Click "GET API KEY"
 
 ### Find Device IDs
-Run the discovery tools to find your device IDs:
+
+Use the included diagnostic tools to find your device IDs:
 
 ```bash
-# Find SwitchBot Hub 2
-python test_connections.py
+# Interactive setup wizard
+python tools/setup_wizard.py
 
-# Find Rachio Smart Hose Timer
-python find_rachio_devices.py
+# Or test connections manually
+python tools/verify_setup.py
+
+# Find all available devices
+python tools/find_devices.py
+```
+
+## Run Modes
+
+### Web Server (Recommended)
+Full-featured web interface with REST API:
+```bash
+python api_server.py
+```
+
+### Standalone Controller  
+Direct sensor monitoring without web UI:
+```bash
+python standalone_controller.py
 ```
 
 ## Web Interface

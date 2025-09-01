@@ -3,6 +3,9 @@
 import os
 import sys
 from pathlib import Path
+
+# Add parent directory to path to import mister_controller
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from mister_controller import SwitchBotAPI, RachioAPI
 
 def setup_environment():
