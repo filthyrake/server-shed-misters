@@ -14,6 +14,14 @@ ENV/
 *.env
 !.env.example
 
+# API Keys and Secrets (extra protection)
+*token*
+*secret*
+*key*
+*credentials*
+!*example*
+!*template*
+
 # IDE
 .vscode/
 .idea/
