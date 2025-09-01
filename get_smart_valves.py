@@ -11,7 +11,15 @@ def get_smart_hose_valves():
     """Get valves from the Smart Hose Timer base station we found"""
     
     api_key = os.environ.get("RACHIO_API_TOKEN")
-    base_station_id = "REDACTED_BASE_STATION_ID"  # From previous search
+    base_station_id = os.environ.get("RACHIO_BASE_STATION_ID")
+    
+    if not api_key:
+        print("Error: RACHIO_API_TOKEN environment variable not set")
+        return None, None
+        
+    if not base_station_id:
+        print("Error: RACHIO_BASE_STATION_ID environment variable not set")
+        return None, None
     
     headers = {
         "Authorization": f"Bearer {api_key}",
