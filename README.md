@@ -6,6 +6,8 @@ A production-ready system that monitors SwitchBot Hub 2 sensors and controls Rac
 
 Ok ok ok, I know, this all sounds totally unhinged.  I have a backyard solar-powered server shed, and live in an EXTREMELY hot and dry climate.  To help with cooling, I have a DIY swamp cooler rigged up in the shed - the evaporative cooling works absolute wonders.  This is a service designed to automate my use of it.  Obviously the thing has been designed with my very specific and unusual use-case in mind, but maybe you can find something neat here.
 
+I vibe coded this with Claude Code just to get something knocked out/usable.  This has lowered ambient temps in the shed by 10+F on hot days, which is a pretty huge deal when you're trying to keep servers cool.
+
 ## Features
 
 - 🌡️ **Real-time monitoring** - SwitchBot Hub 2 temperature/humidity sensors
