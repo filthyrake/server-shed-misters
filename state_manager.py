@@ -3,7 +3,7 @@
 import os
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any
 from zoneinfo import ZoneInfo
@@ -103,9 +103,10 @@ class StateManager:
         if last_start:
             try:
                 dt = datetime.fromisoformat(last_start)
-                # If the datetime is naive (no timezone), assume it's local time
+                # If the datetime is naive (no timezone), assume it was stored in UTC (old behavior)
+                # and convert it to local time
                 if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=ZoneInfo("localtime"))
+                    dt = dt.replace(tzinfo=timezone.utc).astimezone(ZoneInfo("localtime"))
                 return dt
             except:
                 pass
