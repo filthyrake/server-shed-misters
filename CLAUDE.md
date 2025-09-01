@@ -64,12 +64,13 @@ The system uses a **threaded architecture** where the main FastAPI web server ru
 1. **`api_server.py`**: FastAPI web server with embedded background controller thread
 2. **`MisterControllerState`**: Global state manager that runs the sensor monitoring loop in a separate thread
 3. **`state_manager.py`**: Handles persistence across restarts, crash detection, and pause/resume state
-4. **`mister_controller.py`**: Core API wrappers and business logic for SwitchBot/Rachio integration
+4. **`mister_controller.py`**: Core API wrappers and business logic for SwitchBot integration
+5. **`standalone_controller.py`**: Contains `SmartHoseTimerAPI` class for Rachio integration
 
 ### API Integration Pattern
 The project integrates with two different API architectures:
 - **SwitchBot**: Traditional REST API at `api.switch-bot.com` with HMAC-SHA256 authentication
-- **Rachio Smart Hose Timer**: Uses `cloud-rest.rach.io` endpoint (different from traditional Rachio controllers)
+- **Rachio Smart Hose Timer**: Uses `cloud-rest.rach.io` endpoint with Bearer token authentication (different from traditional Rachio controllers)
 
 ### State Management
 The system maintains persistent state in `./data/state.json` including:
@@ -94,7 +95,7 @@ The system uses **AND/OR logic** for start/stop decisions:
 
 ## Environment Configuration
 
-All configuration is via environment variables. The system supports **auto-discovery** of device IDs if not provided:
+All configuration is via environment variables (see `.env.example`). The system supports **auto-discovery** of device IDs if not provided:
 - SwitchBot Hub 2 devices are auto-detected from the device list
 - Rachio base stations and valves are discovered through API enumeration
 
@@ -102,6 +103,7 @@ Critical environment variables:
 - `SWITCHBOT_TOKEN/SECRET`: Required for sensor access
 - `RACHIO_API_TOKEN`: Required for valve control
 - `HUB2_DEVICE_ID/RACHIO_VALVE_ID`: Can be auto-discovered but should be set for production
+- Temperature/humidity thresholds and timing settings are all configurable via environment variables
 
 ## Docker Architecture
 
@@ -115,9 +117,11 @@ Uses Docker named volume `mister-data` mounted at `/app/data` for state file per
 
 ## Testing Strategy
 
-The project includes **integration testing tools** rather than unit tests:
-- Each `test_*.py` file tests specific API integrations or discovery mechanisms
-- Tests require real API credentials and are meant for development/debugging
+The project includes **integration testing and diagnostic tools** rather than unit tests:
+- **`tools/verify_setup.py`**: Tests API connections and credentials
+- **`tools/find_devices.py`**: Discovers available SwitchBot and Rachio devices
+- **`tools/setup_wizard.py`**: Interactive setup for device configuration
+- All tools require real API credentials and are meant for development/debugging
 - No automated test suite - testing is manual and integration-focused
 
 ## Production Considerations

@@ -14,7 +14,7 @@ import logging
 
 # Import our mister controller components
 from mister_controller import SwitchBotAPI, SensorReading, MisterConfig
-from final_mister_controller import SmartHoseTimerAPI
+from standalone_controller import SmartHoseTimerAPI
 from state_manager import StateManager
 
 # Configure logging
