@@ -1,0 +1,26 @@
+[Unit]
+Description=Server Shed Mister Controller
+Requires=docker.service
+After=docker.service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/mister-controller
+ExecStart=/usr/local/bin/docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+ExecStop=/usr/local/bin/docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
+ExecReload=/usr/local/bin/docker-compose -f docker-compose.yml -f docker-compose.prod.yml restart
+TimeoutStartSec=300
+TimeoutStopSec=60
+
+# Restart policy
+Restart=on-failure
+RestartSec=30s
+
+# Environment
+Environment=COMPOSE_PROJECT_NAME=mister-controller
+
+[Install]
+WantedBy=multi-user.target

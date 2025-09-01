@@ -1,0 +1,16 @@
+# Override file for development
+# This file is automatically used by docker-compose when present
+
+version: '3.8'
+
+services:
+  mister-controller:
+    # For development, mount the source code
+    volumes:
+      - .:/app
+      - mister-data:/app/data
+    # Enable auto-reload for development
+    command: ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    # Add development environment variables if needed
+    environment:
+      - PYTHONUNBUFFERED=1

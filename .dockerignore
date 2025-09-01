@@ -1,0 +1,38 @@
+# Development files
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.DS_Store
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Test files
+test_*.py
+debug_*.py
+find_*.py
+get_*.py
+
+# Git
+.git/
+.gitignore
+
+# Documentation that's not needed in container
+README.md

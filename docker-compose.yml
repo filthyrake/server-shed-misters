@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  mister-controller:
+    build: .
+    container_name: mister-controller
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - SWITCHBOT_TOKEN=${SWITCHBOT_TOKEN}
+      - SWITCHBOT_SECRET=${SWITCHBOT_SECRET}
+      - RACHIO_API_TOKEN=${RACHIO_API_TOKEN}
+      - HUB2_DEVICE_ID=${HUB2_DEVICE_ID}
+      - RACHIO_BASE_STATION_ID=${RACHIO_BASE_STATION_ID}
+      - RACHIO_VALVE_ID=${RACHIO_VALVE_ID}
+      - TEMP_HIGH=${TEMP_HIGH:-95}
+      - TEMP_LOW=${TEMP_LOW:-95}
+      - HUMIDITY_LOW=${HUMIDITY_LOW:-35}
+      - HUMIDITY_HIGH=${HUMIDITY_HIGH:-35}
+      - MISTER_DURATION=${MISTER_DURATION:-600}
+      - CHECK_INTERVAL=${CHECK_INTERVAL:-60}
+      - COOLDOWN_SECONDS=${COOLDOWN_SECONDS:-300}
+    volumes:
+      - mister-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mister-data:
+    driver: local
