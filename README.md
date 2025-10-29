@@ -189,7 +189,7 @@ python standalone_controller.py
 server_shed_misters/
 ├── api_server.py              # FastAPI web server and API
 ├── standalone_controller.py   # Standalone controller
-├── mister_controller.py       # Core logic and API clients
+├── mister_controller.py       # API clients (SwitchBotAPI, SmartHoseTimerAPI) and data models
 ├── decision_engine.py        # Misting decision logic
 ├── state_manager.py          # State persistence
 ├── docker-compose.yml        # Docker development config
