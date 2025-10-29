@@ -37,8 +37,10 @@ class SmartHoseTimerAPI:
             else:
                 response = requests.post(url, headers=headers, json=data, timeout=(10, 30))
             
-            if response.status_code in [200, 204]:
+            if response.status_code == 200:
                 return response.json() if response.content else {"success": True}
+            elif response.status_code == 204:
+                return {"success": True}
             else:
                 logger.error(f"Smart Hose Timer API error {response.status_code}: {response.text}")
                 return None
