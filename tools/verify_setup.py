@@ -38,9 +38,12 @@ if switchbot_token and switchbot_secret:
                 print("    → Testing Hub 2 status...")
                 status = api.get_device_status(device['deviceId'])
                 if status:
-                    temp_c = status.get('temperature', 0)
-                    temp_f = (temp_c * 9/5) + 32
-                    print(f"      Temperature: {temp_f:.1f}°F ({temp_c}°C)")
+                    temp_c = status.get('temperature')
+                    if temp_c is not None:
+                        temp_f = (temp_c * 9/5) + 32
+                        print(f"      Temperature: {temp_f:.1f}°F ({temp_c}°C)")
+                    else:
+                        print("      Temperature: unavailable")
                     print(f"      Humidity: {status.get('humidity')}%")
     else:
         print("✗ Failed to get devices or no devices found")
