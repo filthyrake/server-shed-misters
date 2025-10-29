@@ -103,18 +103,14 @@ COOLDOWN_SECONDS=300  # seconds (5 minutes)
 
 ### Find Device IDs
 
-Use the included diagnostic tools to find your device IDs:
+Use the diagnostic tool to find your device IDs:
 
 ```bash
-# Interactive setup wizard
-python tools/setup_wizard.py
-
-# Or test connections manually
-python tools/verify_setup.py
-
-# Find all available devices
+# Find all available devices (SwitchBot Hub 2 and Rachio Smart Hose Timer)
 python tools/find_devices.py
 ```
+
+**Note:** `tools/setup_wizard.py` and `tools/verify_setup.py` are deprecated as they were designed for traditional Rachio controllers. This system only supports Rachio Smart Hose Timer.
 
 ## Run Modes
 
@@ -163,20 +159,7 @@ pip install -r requirements-web.txt
 python api_server.py
 
 # Run standalone controller (testing)
-python final_mister_controller.py
-```
-
-### Testing Components
-
-```bash
-# Test SwitchBot connection
-python test_connections.py
-
-# Test Rachio connection  
-python get_smart_valves.py
-
-# Debug temperature readings
-python debug_switchbot_temp.py
+python standalone_controller.py
 ```
 
 ## Architecture
@@ -205,8 +188,9 @@ python debug_switchbot_temp.py
 ```
 server_shed_misters/
 ├── api_server.py              # FastAPI web server and API
-├── final_mister_controller.py # Standalone controller
-├── mister_controller.py       # Core controller logic
+├── standalone_controller.py   # Standalone controller
+├── mister_controller.py       # Core logic and API clients
+├── decision_engine.py        # Misting decision logic
 ├── state_manager.py          # State persistence
 ├── docker-compose.yml        # Docker development config
 ├── docker-compose.prod.yml   # Docker production config
@@ -219,7 +203,8 @@ server_shed_misters/
 │   └── restore.sh         # Data restore
 ├── systemd/
 │   └── mister-controller.service # systemd service
-└── test_*.py              # Development/testing tools
+└── tools/
+    └── find_devices.py    # Device discovery tool
 ```
 
 ## Contributing

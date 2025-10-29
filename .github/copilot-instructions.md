@@ -36,11 +36,11 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 ### Testing and Diagnostics
 The project uses integration testing rather than unit tests:
-- `python tools/verify_setup.py` - Verify API credentials and connections
-- `python tools/setup_wizard.py` - Interactive setup wizard
-- `python tools/find_devices.py` - Find all available devices and IDs
+- `python tools/find_devices.py` - Find all available devices and IDs (SwitchBot Hub 2 and Rachio Smart Hose Timer)
 
 **Note**: All diagnostic tools require real API credentials and are meant for development/debugging. There is no automated test suite - testing is manual and integration-focused.
+
+**Deprecated Tools**: `tools/verify_setup.py` and `tools/setup_wizard.py` were designed for traditional Rachio controllers and are no longer functional since this system only supports Smart Hose Timer.
 
 ## Architecture and Design Patterns
 
@@ -50,13 +50,16 @@ The system uses a **threaded architecture** where the main FastAPI web server ru
 1. **`api_server.py`**: FastAPI web server with embedded background controller thread
 2. **`MisterControllerState`**: Global state manager that runs the sensor monitoring loop in a separate thread
 3. **`state_manager.py`**: Handles persistence across restarts, crash detection, and pause/resume state
-4. **`mister_controller.py`**: Core API wrappers and business logic for SwitchBot integration
-5. **`standalone_controller.py`**: Contains `SmartHoseTimerAPI` class for Rachio integration
+4. **`mister_controller.py`**: Core API clients (`SwitchBotAPI` and `SmartHoseTimerAPI`) and data models
+5. **`standalone_controller.py`**: Standalone controller that can run without web UI
+6. **`decision_engine.py`**: Centralized misting decision logic
 
 ### API Integration Pattern
 The project integrates with two different API architectures:
 - **SwitchBot**: Traditional REST API at `api.switch-bot.com` with HMAC-SHA256 authentication
-- **Rachio Smart Hose Timer**: Uses `cloud-rest.rach.io` endpoint with Bearer token authentication (different from traditional Rachio controllers)
+- **Rachio Smart Hose Timer**: Uses `cloud-rest.rach.io` endpoint with Bearer token authentication
+
+**IMPORTANT**: This system supports **Rachio Smart Hose Timer ONLY**, not traditional Rachio irrigation controllers. The Smart Hose Timer uses a completely different API (`cloud-rest.rach.io`) than traditional controllers (`api.rach.io`).
 
 ### State Management
 The system maintains persistent state in `./data/state.json` including:
@@ -134,8 +137,9 @@ The system is designed to run as a systemd service with Docker Compose, providin
 ```
 server_shed_misters/
 ├── api_server.py              # FastAPI web server and API
-├── standalone_controller.py   # Standalone controller (with SmartHoseTimerAPI)
-├── mister_controller.py       # Core controller logic and SwitchBot integration
+├── standalone_controller.py   # Standalone controller
+├── mister_controller.py       # Core API clients and data models
+├── decision_engine.py        # Misting decision logic
 ├── state_manager.py          # State persistence
 ├── docker-compose.yml        # Docker base config
 ├── docker-compose.override.yml # Docker development overrides (hot reload)
@@ -150,8 +154,6 @@ server_shed_misters/
 ├── systemd/
 │   └── mister-controller.service # systemd service
 └── tools/
-    ├── verify_setup.py    # Test API connections
-    ├── setup_wizard.py    # Interactive setup
     └── find_devices.py    # Device discovery
 ```
 
