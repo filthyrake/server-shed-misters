@@ -31,11 +31,11 @@ class SmartHoseTimerAPI:
         
         try:
             if method == "GET":
-                response = requests.get(url, headers=headers)
+                response = requests.get(url, headers=headers, timeout=(10, 30))
             elif method == "PUT":
-                response = requests.put(url, headers=headers, json=data)
+                response = requests.put(url, headers=headers, json=data, timeout=(10, 30))
             else:
-                response = requests.post(url, headers=headers, json=data)
+                response = requests.post(url, headers=headers, json=data, timeout=(10, 30))
             
             if response.status_code in [200, 204]:
                 return response.json() if response.content else {"success": True}

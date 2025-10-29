@@ -25,7 +25,7 @@ def test_all_rachio_apis():
     
     # Get person info
     print("\n1. Getting Person Info...")
-    response = requests.get("https://api.rach.io/1/public/person/info", headers=headers)
+    response = requests.get("https://api.rach.io/1/public/person/info", headers=headers, timeout=(10, 30))
     
     if response.status_code == 200:
         person_info = response.json()
@@ -34,7 +34,7 @@ def test_all_rachio_apis():
         
         # Check for traditional controllers
         print("\n2. Checking for Traditional Controllers...")
-        person_response = requests.get(f"https://api.rach.io/1/public/person/{person_id}", headers=headers)
+        person_response = requests.get(f"https://api.rach.io/1/public/person/{person_id}", headers=headers, timeout=(10, 30))
         
         if person_response.status_code == 200:
             person_data = person_response.json()
@@ -62,9 +62,9 @@ def test_all_rachio_apis():
             
             try:
                 if method == "GET":
-                    resp = requests.get(url, headers=headers)
+                    resp = requests.get(url, headers=headers, timeout=(10, 30))
                 else:
-                    resp = requests.post(url, headers=headers, json=data)
+                    resp = requests.post(url, headers=headers, json=data, timeout=(10, 30))
                 
                 if resp.status_code == 200:
                     result = resp.json()
@@ -77,7 +77,7 @@ def test_all_rachio_apis():
                             if 'id' in bs:
                                 print(f"\n   Checking valves for base station {bs['id']}...")
                                 valve_url = f"https://api.rach.io/1/public/valve/listValves/{bs['id']}"
-                                valve_resp = requests.get(valve_url, headers=headers)
+                                valve_resp = requests.get(valve_url, headers=headers, timeout=(10, 30))
                                 
                                 if valve_resp.status_code == 200:
                                     valves = valve_resp.json()
@@ -102,7 +102,7 @@ def test_all_rachio_apis():
         ]
         
         for url in doc_urls:
-            resp = requests.get(url, headers=headers)
+            resp = requests.get(url, headers=headers, timeout=(10, 30))
             print(f"   {url}: Status {resp.status_code}")
     else:
         print(f"✗ Failed to get person info: {response.status_code}")
