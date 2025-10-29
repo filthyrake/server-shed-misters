@@ -17,6 +17,7 @@ import logging
 from mister_controller import SwitchBotAPI, SensorReading, MisterConfig
 from standalone_controller import SmartHoseTimerAPI
 from state_manager import StateManager
+from decision_engine import MistingDecisionEngine
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -106,33 +107,21 @@ class MisterControllerState:
             raise
     
     def should_start_misting(self, reading: SensorReading) -> bool:
-        if self.is_misting or self.is_paused:
-            return False
-        
-        if self.last_mister_start:
-            time_since = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
-            if time_since < self.config.cooldown_seconds:
-                return False
-        
-        too_hot = reading.temperature > self.config.temperature_threshold_high
-        too_dry = reading.humidity < self.config.humidity_threshold_low
-        
-        return too_hot and too_dry
+        return MistingDecisionEngine.should_start_misting(
+            reading=reading,
+            config=self.config,
+            is_misting=self.is_misting,
+            is_paused=self.is_paused,
+            last_mister_start=self.last_mister_start
+        )
     
     def should_stop_misting(self, reading: SensorReading) -> bool:
-        if not self.is_misting:
-            return False
-        
-        cool_enough = reading.temperature < self.config.temperature_threshold_low
-        humid_enough = reading.humidity > self.config.humidity_threshold_high
-        
-        if self.last_mister_start:
-            time_running = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
-            max_duration = time_running >= self.config.mister_duration_seconds
-            
-            return cool_enough or humid_enough or max_duration
-        
-        return False
+        return MistingDecisionEngine.should_stop_misting(
+            reading=reading,
+            config=self.config,
+            is_misting=self.is_misting,
+            last_mister_start=self.last_mister_start
+        )
     
     def controller_loop(self):
         """Main controller loop running in background thread"""

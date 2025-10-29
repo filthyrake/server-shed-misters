@@ -6,6 +6,7 @@ import requests
 from datetime import datetime
 from dotenv import load_dotenv
 from mister_controller import SwitchBotAPI, SensorReading, MisterConfig
+from decision_engine import MistingDecisionEngine
 import logging
 
 logging.basicConfig(
@@ -140,37 +141,22 @@ class FinalMisterController:
         return True
     
     def should_start_misting(self, reading: SensorReading) -> bool:
-        if self.is_misting:
-            return False
-        
-        # Check cooldown
-        if self.last_mister_start:
-            time_since = (datetime.now() - self.last_mister_start).total_seconds()
-            if time_since < self.config.cooldown_seconds:
-                return False
-        
-        # Both conditions must be true
-        too_hot = reading.temperature > self.config.temperature_threshold_high
-        too_dry = reading.humidity < self.config.humidity_threshold_low
-        
-        return too_hot and too_dry
+        # standalone_controller doesn't have a pause state, so pass False
+        return MistingDecisionEngine.should_start_misting(
+            reading=reading,
+            config=self.config,
+            is_misting=self.is_misting,
+            is_paused=False,
+            last_mister_start=self.last_mister_start
+        )
     
     def should_stop_misting(self, reading: SensorReading) -> bool:
-        if not self.is_misting:
-            return False
-        
-        # Either condition can stop misting
-        cool_enough = reading.temperature < self.config.temperature_threshold_low
-        humid_enough = reading.humidity > self.config.humidity_threshold_high
-        
-        # Or max duration reached
-        if self.last_mister_start:
-            time_running = (datetime.now() - self.last_mister_start).total_seconds()
-            max_duration = time_running >= self.config.mister_duration_seconds
-            
-            return cool_enough or humid_enough or max_duration
-        
-        return False
+        return MistingDecisionEngine.should_stop_misting(
+            reading=reading,
+            config=self.config,
+            is_misting=self.is_misting,
+            last_mister_start=self.last_mister_start
+        )
     
     def run(self):
         if not self.setup():
