@@ -42,7 +42,7 @@ class SmartHoseTimerAPI:
             else:
                 logger.error(f"Smart Hose Timer API error {response.status_code}: {response.text}")
                 return None
-        except Exception as e:
+        except requests.RequestException as e:
             logger.error(f"Smart Hose Timer API exception: {e}")
             return None
     
