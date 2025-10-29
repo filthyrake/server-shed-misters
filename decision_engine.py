@@ -57,7 +57,12 @@ class MistingDecisionEngine:
         
         # Check cooldown period
         if last_mister_start:
-            time_since = (datetime.now(ZoneInfo("localtime")) - last_mister_start).total_seconds()
+            # Use timezone-aware datetime if last_mister_start is aware, otherwise naive
+            if last_mister_start.tzinfo is not None:
+                now = datetime.now(ZoneInfo("localtime"))
+            else:
+                now = datetime.now()
+            time_since = (now - last_mister_start).total_seconds()
             if time_since < config.cooldown_seconds:
                 return False
         
@@ -101,7 +106,12 @@ class MistingDecisionEngine:
         
         # Check max duration
         if last_mister_start:
-            time_running = (datetime.now(ZoneInfo("localtime")) - last_mister_start).total_seconds()
+            # Use timezone-aware datetime if last_mister_start is aware, otherwise naive
+            if last_mister_start.tzinfo is not None:
+                now = datetime.now(ZoneInfo("localtime"))
+            else:
+                now = datetime.now()
+            time_running = (now - last_mister_start).total_seconds()
             max_duration = time_running >= config.mister_duration_seconds
             
             return cool_enough or humid_enough or max_duration
