@@ -225,23 +225,18 @@ class MisterControllerState:
             if not self.is_running:
                 return False, "Controller is not running"
             
-            # Check hardware safety for valve action
-            safe, message = self._check_valve_action_safety()
-            if not safe:
-                if self.is_misting:
-                    # For emergency stop, we override safety if misting is active
-                    logger.warning(f"Emergency stop overriding safety delay: {message}")
-                else:
-                    # Enforce safety delay for non-emergency stops
-                    logger.warning(f"Stop operation blocked by safety delay: {message}")
-                    return False, message
-            
             self.stop_event.set()
             if self.controller_thread:
                 self.controller_thread.join(timeout=5)
             
             # Emergency stop misting
             if self.is_misting:
+                # Check hardware safety for valve action
+                safe, message = self._check_valve_action_safety()
+                if not safe:
+                    # For emergency stop, we override safety if misting is active
+                    logger.warning(f"Emergency stop overriding safety delay: {message}")
+                
                 try:
                     self.rachio.stop_watering(self.valve_id)
                     self.is_misting = False
