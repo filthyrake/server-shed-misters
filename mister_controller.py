@@ -121,10 +121,17 @@ class SwitchBotAPI:
         return None
 
 
-class RachioAPI:
+class SmartHoseTimerAPI:
+    """
+    API client for Rachio Smart Hose Timer.
+    
+    NOTE: This is different from traditional Rachio controllers (which use api.rach.io).
+    The Smart Hose Timer uses a different API endpoint and authentication model.
+    """
+    
     def __init__(self, api_token: str):
         self.api_token = api_token
-        self.base_url = "https://api.rach.io/1/public"
+        self.base_url = "https://cloud-rest.rach.io"
         
     def _make_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Optional[Dict]:
         headers = {
@@ -142,218 +149,40 @@ class RachioAPI:
             else:
                 response = requests.post(url, headers=headers, json=data, timeout=(10, 30))
             
-            response.raise_for_status()
-            return response.json()
+            if response.status_code == 200:
+                return response.json() if response.content else {"success": True}
+            elif response.status_code == 204:
+                return {"success": True}
+            else:
+                logger.error(f"Smart Hose Timer API error {response.status_code}: {response.text}")
+                return None
         except requests.RequestException as e:
-            logger.error(f"Rachio API request failed: {e}")
+            logger.error(f"Smart Hose Timer API exception: {e}")
             return None
     
-    def get_person_info(self) -> Optional[Dict]:
-        return self._make_request("/person/info")
-    
-    def get_person_id(self) -> Optional[str]:
-        info = self.get_person_info()
-        if info:
-            return info.get("id")
-        return None
-    
-    def get_devices(self, person_id: str) -> Optional[List[Dict]]:
-        result = self._make_request(f"/person/{person_id}")
-        if result:
-            return result.get("devices", [])
-        return None
-    
-    def start_zone(self, zone_id: str, duration: int) -> bool:
-        data = {
-            "id": zone_id,
-            "duration": duration
-        }
-        result = self._make_request("/zone/start", method="PUT", data=data)
+    def start_watering(self, valve_id: str, duration_seconds: int) -> bool:
+        """Start watering for the specified duration"""
+        logger.info(f"Starting valve {valve_id} for {duration_seconds} seconds")
+        
+        result = self._make_request("/valve/startWatering", "PUT", {
+            "valveId": valve_id,
+            "durationSeconds": duration_seconds
+        })
+        
         return result is not None
     
-    def stop_watering(self, device_id: str) -> bool:
-        data = {
-            "id": device_id
-        }
-        result = self._make_request("/device/stop_water", method="PUT", data=data)
+    def stop_watering(self, valve_id: str) -> bool:
+        """Stop watering"""
+        logger.info(f"Stopping valve {valve_id}")
+        
+        result = self._make_request("/valve/stopWatering", "PUT", {
+            "valveId": valve_id
+        })
+        
         return result is not None
-
-
-class MisterController:
-    def __init__(self, switchbot_api: SwitchBotAPI, rachio_api: RachioAPI, 
-                 hub2_device_id: str, rachio_zone_id: str, rachio_device_id: str,
-                 config: MisterConfig):
-        self.switchbot = switchbot_api
-        self.rachio = rachio_api
-        self.hub2_device_id = hub2_device_id
-        self.rachio_zone_id = rachio_zone_id
-        self.rachio_device_id = rachio_device_id
-        self.config = config
-        self.last_mister_start = None
-        self.is_misting = False
-        
-    def should_start_mister(self, reading: SensorReading) -> bool:
-        if self.is_misting:
-            return False
-            
-        if self.last_mister_start:
-            time_since_last = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
-            if time_since_last < self.config.cooldown_seconds:
-                logger.debug(f"In cooldown period. {self.config.cooldown_seconds - time_since_last:.0f} seconds remaining")
-                return False
-        
-        temp_too_high = reading.temperature > self.config.temperature_threshold_high
-        humidity_too_low = reading.humidity < self.config.humidity_threshold_low
-        
-        return temp_too_high and humidity_too_low
     
-    def should_stop_mister(self, reading: SensorReading) -> bool:
-        if not self.is_misting:
-            return False
-            
-        temp_ok = reading.temperature < self.config.temperature_threshold_low
-        humidity_ok = reading.humidity > self.config.humidity_threshold_high
-        
-        if self.last_mister_start:
-            time_running = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
-            max_duration_reached = time_running >= self.config.mister_duration_seconds
-            
-            return (temp_ok or humidity_ok) or max_duration_reached
-        
-        return False
-    
-    def start_mister(self) -> bool:
-        logger.info(f"Starting mister for {self.config.mister_duration_seconds} seconds")
-        success = self.rachio.start_zone(self.rachio_zone_id, self.config.mister_duration_seconds)
-        if success:
-            self.is_misting = True
-            self.last_mister_start = datetime.now(ZoneInfo("localtime"))
-            logger.info("Mister started successfully")
-        else:
-            logger.error("Failed to start mister")
-        return success
-    
-    def stop_mister(self) -> bool:
-        logger.info("Stopping mister")
-        success = self.rachio.stop_watering(self.rachio_device_id)
-        if success:
-            self.is_misting = False
-            logger.info("Mister stopped successfully")
-        else:
-            logger.error("Failed to stop mister")
-        return success
-    
-    def get_sensor_reading(self) -> Optional[SensorReading]:
-        return self.switchbot.get_hub2_data(self.hub2_device_id)
-    
-    def process_reading(self, reading: SensorReading) -> MisterAction:
-        logger.info(f"Sensor reading - Temp: {reading.temperature}°F, Humidity: {reading.humidity}%")
-        
-        if self.should_start_mister(reading):
-            if self.start_mister():
-                return MisterAction.START
-        elif self.should_stop_mister(reading):
-            if self.stop_mister():
-                return MisterAction.STOP
-        
-        return MisterAction.NONE
-    
-    def run(self):
-        logger.info("Starting Mister Controller")
-        logger.info(f"Configuration: {self.config}")
-        
-        while True:
-            try:
-                reading = self.get_sensor_reading()
-                if reading:
-                    action = self.process_reading(reading)
-                    if action != MisterAction.NONE:
-                        logger.info(f"Action taken: {action.value}")
-                else:
-                    logger.warning("Failed to get sensor reading")
-                
-                time.sleep(self.config.check_interval_seconds)
-                
-            except KeyboardInterrupt:
-                logger.info("Shutting down Mister Controller")
-                if self.is_misting:
-                    self.stop_mister()
-                break
-            except Exception as e:
-                logger.error(f"Unexpected error: {e}")
-                time.sleep(self.config.check_interval_seconds)
-
-
-def main():
-    load_dotenv()
-    
-    switchbot_token = os.environ.get("SWITCHBOT_TOKEN")
-    switchbot_secret = os.environ.get("SWITCHBOT_SECRET")
-    rachio_token = os.environ.get("RACHIO_API_TOKEN")
-    hub2_device_id = os.environ.get("HUB2_DEVICE_ID")
-    rachio_zone_id = os.environ.get("RACHIO_ZONE_ID")
-    rachio_device_id = os.environ.get("RACHIO_DEVICE_ID")
-    
-    if not all([switchbot_token, switchbot_secret, rachio_token]):
-        logger.error("Missing required environment variables")
-        logger.error("Required: SWITCHBOT_TOKEN, SWITCHBOT_SECRET, RACHIO_API_TOKEN")
-        logger.error("Optional: HUB2_DEVICE_ID, RACHIO_ZONE_ID, RACHIO_DEVICE_ID")
-        return
-    
-    switchbot_api = SwitchBotAPI(switchbot_token, switchbot_secret)
-    rachio_api = RachioAPI(rachio_token)
-    
-    if not hub2_device_id:
-        logger.info("HUB2_DEVICE_ID not set, fetching devices...")
-        devices = switchbot_api.get_devices()
-        if devices:
-            hub2_devices = [d for d in devices if d.get("deviceType") == "Hub 2"]
-            if hub2_devices:
-                hub2_device_id = hub2_devices[0]["deviceId"]
-                logger.info(f"Found Hub 2 device: {hub2_device_id}")
-            else:
-                logger.error("No Hub 2 devices found")
-                return
-    
-    if not rachio_zone_id or not rachio_device_id:
-        logger.info("Fetching Rachio devices...")
-        person_id = rachio_api.get_person_id()
-        if person_id:
-            devices = rachio_api.get_devices(person_id)
-            if devices and len(devices) > 0:
-                rachio_device_id = devices[0]["id"]
-                zones = devices[0].get("zones", [])
-                if zones:
-                    enabled_zones = [z for z in zones if z.get("enabled")]
-                    if enabled_zones:
-                        rachio_zone_id = enabled_zones[0]["id"]
-                        logger.info(f"Using zone: {enabled_zones[0].get('name', rachio_zone_id)}")
-    
-    if not all([hub2_device_id, rachio_zone_id, rachio_device_id]):
-        logger.error("Could not determine all required device IDs")
-        return
-    
-    config = MisterConfig(
-        temperature_threshold_high=float(os.environ.get("TEMP_HIGH", 95)),
-        temperature_threshold_low=float(os.environ.get("TEMP_LOW", 95)),
-        humidity_threshold_low=float(os.environ.get("HUMIDITY_LOW", 35)),
-        humidity_threshold_high=float(os.environ.get("HUMIDITY_HIGH", 35)),
-        mister_duration_seconds=int(os.environ.get("MISTER_DURATION", 600)),
-        check_interval_seconds=int(os.environ.get("CHECK_INTERVAL", 60)),
-        cooldown_seconds=int(os.environ.get("COOLDOWN_SECONDS", 300))
-    )
-    
-    controller = MisterController(
-        switchbot_api=switchbot_api,
-        rachio_api=rachio_api,
-        hub2_device_id=hub2_device_id,
-        rachio_zone_id=rachio_zone_id,
-        rachio_device_id=rachio_device_id,
-        config=config
-    )
-    
-    controller.run()
-
-
-if __name__ == "__main__":
-    main()
+    def get_valve_status(self, valve_id: str) -> Optional[Dict]:
+        """Get valve status"""
+        # This would require finding the right endpoint for valve status
+        # For now, we'll rely on our own state tracking
+        return {}

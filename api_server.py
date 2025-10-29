@@ -17,8 +17,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 # Import our mister controller components
-from mister_controller import SwitchBotAPI, SensorReading, MisterConfig
-from standalone_controller import SmartHoseTimerAPI
+from mister_controller import SwitchBotAPI, SmartHoseTimerAPI, SensorReading, MisterConfig
 from state_manager import StateManager
 from decision_engine import MistingDecisionEngine
 

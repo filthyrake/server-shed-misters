@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
 
+"""
+DEPRECATED: This tool is for traditional Rachio controllers, not Smart Hose Timer.
+
+This system only supports Rachio Smart Hose Timer (not traditional controllers).
+For device discovery, use: tools/find_devices.py
+
+This file is kept for reference purposes only.
+"""
+
 import os
 import sys
 import json
@@ -7,7 +16,19 @@ from dotenv import load_dotenv
 
 # Add parent directory to path to import mister_controller
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from mister_controller import SwitchBotAPI, RachioAPI
+
+# Note: RachioAPI class has been removed as it's not used in production
+# This tool would need to be updated to use SmartHoseTimerAPI for Smart Hose Timer support
+print("=" * 70)
+print("DEPRECATED TOOL")
+print("=" * 70)
+print("This tool is for traditional Rachio controllers, not Smart Hose Timer.")
+print("The system now only supports Rachio Smart Hose Timer.")
+print()
+print("For device discovery, please use: tools/find_devices.py")
+print("For manual API testing, check the API endpoints directly")
+print("=" * 70)
+sys.exit(1)
 
 load_dotenv()
 
