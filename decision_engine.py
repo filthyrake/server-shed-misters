@@ -30,7 +30,7 @@ class MistingDecisionEngine:
         
         If reference_datetime is timezone-aware, returns timezone-aware now().
         If reference_datetime is naive, returns naive now().
-        If reference_datetime is None, returns timezone-aware now() by default.
+        If reference_datetime is None, returns naive now().
         
         Args:
             reference_datetime: Optional reference datetime to match timezone awareness
