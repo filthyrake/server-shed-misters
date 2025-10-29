@@ -4,14 +4,17 @@ import os
 import threading
 import time
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from zoneinfo import ZoneInfo
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import logging
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # Import our mister controller components
 from mister_controller import SwitchBotAPI, SensorReading, MisterConfig
@@ -23,7 +26,12 @@ from decision_engine import MistingDecisionEngine
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(title="Mister Controller API", version="1.0.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Pydantic models
 class StatusResponse(BaseModel):
@@ -53,6 +61,13 @@ class MisterControllerState:
         self.start_time = datetime.now(ZoneInfo("localtime"))
         self.controller_thread = None
         self.stop_event = threading.Event()
+        
+        # Thread safety lock for state changes
+        self._state_lock = threading.Lock()
+        
+        # Hardware safety: Track last valve action time
+        self._last_valve_action_time = None
+        self.MIN_VALVE_ACTION_INTERVAL = 30  # seconds between valve operations
         
         # Initialize state manager
         self.state_manager = StateManager()
@@ -106,6 +121,22 @@ class MisterControllerState:
             logger.error(f"Failed to setup APIs: {e}")
             raise
     
+    def _check_valve_action_safety(self) -> Tuple[bool, str]:
+        """Check if it's safe to perform a valve action (hardware safety delay)"""
+        if self._last_valve_action_time is None:
+            return True, "OK"
+        
+        elapsed = time.time() - self._last_valve_action_time
+        if elapsed < self.MIN_VALVE_ACTION_INTERVAL:
+            remaining = int(self.MIN_VALVE_ACTION_INTERVAL - elapsed)
+            return False, f"Hardware safety: Wait {remaining}s before next valve action"
+        
+        return True, "OK"
+    
+    def _record_valve_action(self):
+        """Record timestamp of valve action for safety tracking"""
+        self._last_valve_action_time = time.time()
+    
     def should_start_misting(self, reading: SensorReading) -> bool:
         return MistingDecisionEngine.should_start_misting(
             reading=reading,
@@ -144,6 +175,7 @@ class MisterControllerState:
                                 self.is_misting = True
                                 self.last_mister_start = datetime.now(ZoneInfo("localtime"))
                                 self.state_manager.record_mister_start(self.last_mister_start)
+                                self._record_valve_action()
                                 logger.info("Mister started successfully")
                             else:
                                 logger.error("Failed to start mister")
@@ -151,8 +183,13 @@ class MisterControllerState:
                         elif self.should_stop_misting(reading):
                             logger.info(f"Stopping mister - Temp: {reading.temperature:.1f}°F, Humidity: {reading.humidity}%")
                             
-                            if self.rachio.stop_watering(self.valve_id):
+                            # Check hardware safety before stopping valve
+                            safe, safety_message = self._check_valve_action_safety()
+                            if not safe:
+                                logger.warning(f"Valve stop action skipped due to safety check: {safety_message}")
+                            elif self.rachio.stop_watering(self.valve_id):
                                 self.is_misting = False
+                                self._record_valve_action()
                                 logger.info("Mister stopped successfully")
                             else:
                                 logger.error("Failed to stop mister")
@@ -167,58 +204,73 @@ class MisterControllerState:
         logger.info("Controller loop stopped")
     
     def start(self):
-        if self.is_running:
-            return False, "Controller is already running"
-        
-        self.stop_event.clear()
-        self.controller_thread = threading.Thread(target=self.controller_loop, daemon=True)
-        self.controller_thread.start()
-        self.is_running = True
-        
-        logger.info("Controller started")
-        return True, "Controller started successfully"
+        with self._state_lock:
+            if self.is_running:
+                return False, "Controller is already running"
+            
+            # Check if a thread is already starting/running to prevent race conditions
+            if self.controller_thread and self.controller_thread.is_alive():
+                return False, "Controller thread is already active"
+            
+            self.stop_event.clear()
+            self.controller_thread = threading.Thread(target=self.controller_loop, daemon=True)
+            self.controller_thread.start()
+            self.is_running = True
+            
+            logger.info("Controller started")
+            return True, "Controller started successfully"
     
     def stop(self):
-        if not self.is_running:
-            return False, "Controller is not running"
-        
-        self.stop_event.set()
-        if self.controller_thread:
-            self.controller_thread.join(timeout=5)
-        
-        # Emergency stop misting
-        if self.is_misting:
-            try:
-                self.rachio.stop_watering(self.valve_id)
-                self.is_misting = False
-            except Exception as e:
-                logger.error(f"Emergency stop failed: {e}")
-        
-        self.is_running = False
-        logger.info("Controller stopped")
-        return True, "Controller stopped successfully"
+        with self._state_lock:
+            if not self.is_running:
+                return False, "Controller is not running"
+            
+            self.stop_event.set()
+            if self.controller_thread:
+                self.controller_thread.join(timeout=5)
+            
+            # Emergency stop misting
+            if self.is_misting:
+                # Check hardware safety for valve action
+                safe, message = self._check_valve_action_safety()
+                if not safe:
+                    # For emergency stop, we override safety if misting is active
+                    logger.warning(f"Emergency stop overriding safety delay: {message}")
+                
+                try:
+                    self.rachio.stop_watering(self.valve_id)
+                    self.is_misting = False
+                    self._record_valve_action()
+                except Exception as e:
+                    logger.error(f"Emergency stop failed: {e}")
+            
+            self.is_running = False
+            logger.info("Controller stopped")
+            return True, "Controller stopped successfully"
     
     def pause(self):
-        if not self.is_running:
-            return False, "Controller is not running"
-        if self.is_paused:
-            return False, "Controller is already paused"
-        
-        self.is_paused = True
-        self.state_manager.set_paused(True)
-        logger.info("Controller paused")
-        return True, "Controller paused"
+        with self._state_lock:
+            if not self.is_running:
+                return False, "Controller is not running"
+            if self.is_paused:
+                return False, "Controller is already paused"
+            
+            self.is_paused = True
+            self.state_manager.set_paused(True)
+            logger.info("Controller paused")
+            return True, "Controller paused"
     
     def resume(self):
-        if not self.is_running:
-            return False, "Controller is not running"
-        if not self.is_paused:
-            return False, "Controller is not paused"
-        
-        self.is_paused = False
-        self.state_manager.set_paused(False)
-        logger.info("Controller resumed")
-        return True, "Controller resumed"
+        with self._state_lock:
+            if not self.is_running:
+                return False, "Controller is not running"
+            if not self.is_paused:
+                return False, "Controller is not paused"
+            
+            self.is_paused = False
+            self.state_manager.set_paused(False)
+            logger.info("Controller resumed")
+            return True, "Controller resumed"
 
 # Global state instance
 state = MisterControllerState()
@@ -492,7 +544,8 @@ async def get_status() -> StatusResponse:
     )
 
 @app.post("/api/pause")
-async def pause_controller() -> ControlResponse:
+@limiter.limit("5/minute")
+async def pause_controller(request: Request) -> ControlResponse:
     """Pause the controller"""
     success, message = state.pause()
     return ControlResponse(
@@ -502,7 +555,8 @@ async def pause_controller() -> ControlResponse:
     )
 
 @app.post("/api/resume")
-async def resume_controller() -> ControlResponse:
+@limiter.limit("5/minute")
+async def resume_controller(request: Request) -> ControlResponse:
     """Resume the controller"""
     success, message = state.resume()
     return ControlResponse(
@@ -512,7 +566,8 @@ async def resume_controller() -> ControlResponse:
     )
 
 @app.post("/api/stop")
-async def stop_controller() -> ControlResponse:
+@limiter.limit("5/minute")
+async def stop_controller(request: Request) -> ControlResponse:
     """Stop the controller"""
     success, message = state.stop()
     return ControlResponse(
@@ -522,7 +577,8 @@ async def stop_controller() -> ControlResponse:
     )
 
 @app.post("/api/start")
-async def start_controller() -> ControlResponse:
+@limiter.limit("5/minute")
+async def start_controller(request: Request) -> ControlResponse:
     """Start the controller"""
     success, message = state.start()
     return ControlResponse(
