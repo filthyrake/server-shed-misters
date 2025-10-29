@@ -314,6 +314,7 @@ If you see unexpected "already running" errors:
 ### Hardware Safety False Alarms
 
 If valve actions are blocked unexpectedly:
-- Check if cooldown period (300s) is less than safety interval (30s)
-- Review valve action timestamps in logs
-- Verify controller loop timing is correct
+- Check valve action timestamps in logs to verify the 30s interval
+- Verify the controller loop isn't triggering valve actions too quickly
+- Review configuration to ensure check interval isn't too short
+- Note: The cooldown period (300s) is normally longer than safety interval (30s)
