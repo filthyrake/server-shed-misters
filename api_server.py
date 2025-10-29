@@ -4,9 +4,9 @@ import os
 import threading
 import time
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from zoneinfo import ZoneInfo
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
@@ -121,7 +121,7 @@ class MisterControllerState:
             logger.error(f"Failed to setup APIs: {e}")
             raise
     
-    def _check_valve_action_safety(self) -> tuple[bool, str]:
+    def _check_valve_action_safety(self) -> Tuple[bool, str]:
         """Check if it's safe to perform a valve action (hardware safety delay)"""
         if self._last_valve_action_time is None:
             return True, "OK"
@@ -183,7 +183,11 @@ class MisterControllerState:
                         elif self.should_stop_misting(reading):
                             logger.info(f"Stopping mister - Temp: {reading.temperature:.1f}°F, Humidity: {reading.humidity}%")
                             
-                            if self.rachio.stop_watering(self.valve_id):
+                            # Check hardware safety before stopping valve
+                            safe, safety_message = self._check_valve_action_safety()
+                            if not safe:
+                                logger.warning(f"Valve stop action skipped due to safety check: {safety_message}")
+                            elif self.rachio.stop_watering(self.valve_id):
                                 self.is_misting = False
                                 self._record_valve_action()
                                 logger.info("Mister stopped successfully")
@@ -223,9 +227,14 @@ class MisterControllerState:
             
             # Check hardware safety for valve action
             safe, message = self._check_valve_action_safety()
-            if not safe and self.is_misting:
-                # For emergency stop, we override safety if misting is active
-                logger.warning(f"Emergency stop overriding safety delay: {message}")
+            if not safe:
+                if self.is_misting:
+                    # For emergency stop, we override safety if misting is active
+                    logger.warning(f"Emergency stop overriding safety delay: {message}")
+                else:
+                    # Enforce safety delay for non-emergency stops
+                    logger.warning(f"Stop operation blocked by safety delay: {message}")
+                    return False, message
             
             self.stop_event.set()
             if self.controller_thread:
