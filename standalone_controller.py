@@ -4,6 +4,7 @@ import os
 import time
 import requests
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from mister_controller import SwitchBotAPI, SensorReading, MisterConfig
 from decision_engine import MistingDecisionEngine
@@ -176,7 +177,7 @@ class FinalMisterController:
                         
                         if self.rachio.start_watering(self.valve_id, self.config.mister_duration_seconds):
                             self.is_misting = True
-                            self.last_mister_start = datetime.now()
+                            self.last_mister_start = datetime.now(ZoneInfo("localtime"))
                             logger.info(f"✅ Mister started successfully for {self.config.mister_duration_seconds}s")
                         else:
                             logger.error("❌ Failed to start mister")
@@ -188,7 +189,7 @@ class FinalMisterController:
                         if reading.humidity > self.config.humidity_threshold_high:
                             reason.append("humidity increased")
                         if self.last_mister_start:
-                            runtime = (datetime.now() - self.last_mister_start).total_seconds()
+                            runtime = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
                             if runtime >= self.config.mister_duration_seconds:
                                 reason.append("max duration")
                         
@@ -206,7 +207,7 @@ class FinalMisterController:
                         
                         if self.is_misting:
                             if self.last_mister_start:
-                                runtime = (datetime.now() - self.last_mister_start).total_seconds()
+                                runtime = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
                                 remaining = self.config.mister_duration_seconds - runtime
                                 status_parts.append(f"💦 MISTING ({remaining:.0f}s left)")
                             else:
@@ -222,7 +223,7 @@ class FinalMisterController:
                             
                             # Cooldown info
                             if self.last_mister_start:
-                                cooldown_elapsed = (datetime.now() - self.last_mister_start).total_seconds()
+                                cooldown_elapsed = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
                                 if cooldown_elapsed < self.config.cooldown_seconds:
                                     cooldown_remaining = self.config.cooldown_seconds - cooldown_elapsed
                                     status_parts.append(f"⏰ COOLDOWN ({cooldown_remaining:.0f}s)")
