@@ -24,6 +24,26 @@ class MistingDecisionEngine:
     """
     
     @staticmethod
+    def _get_compatible_now(reference_datetime: Optional[datetime]) -> datetime:
+        """
+        Get current datetime compatible with the reference datetime's timezone awareness.
+        
+        If reference_datetime is timezone-aware, returns timezone-aware now().
+        If reference_datetime is naive, returns naive now().
+        If reference_datetime is None, returns timezone-aware now() by default.
+        
+        Args:
+            reference_datetime: Optional reference datetime to match timezone awareness
+            
+        Returns:
+            Current datetime with matching timezone awareness
+        """
+        if reference_datetime is not None and reference_datetime.tzinfo is not None:
+            return datetime.now(ZoneInfo("localtime"))
+        else:
+            return datetime.now()
+    
+    @staticmethod
     def should_start_misting(
         reading: SensorReading,
         config: MisterConfig,
@@ -57,11 +77,7 @@ class MistingDecisionEngine:
         
         # Check cooldown period
         if last_mister_start:
-            # Use timezone-aware datetime if last_mister_start is aware, otherwise naive
-            if last_mister_start.tzinfo is not None:
-                now = datetime.now(ZoneInfo("localtime"))
-            else:
-                now = datetime.now()
+            now = MistingDecisionEngine._get_compatible_now(last_mister_start)
             time_since = (now - last_mister_start).total_seconds()
             if time_since < config.cooldown_seconds:
                 return False
@@ -106,11 +122,7 @@ class MistingDecisionEngine:
         
         # Check max duration
         if last_mister_start:
-            # Use timezone-aware datetime if last_mister_start is aware, otherwise naive
-            if last_mister_start.tzinfo is not None:
-                now = datetime.now(ZoneInfo("localtime"))
-            else:
-                now = datetime.now()
+            now = MistingDecisionEngine._get_compatible_now(last_mister_start)
             time_running = (now - last_mister_start).total_seconds()
             max_duration = time_running >= config.mister_duration_seconds
             
