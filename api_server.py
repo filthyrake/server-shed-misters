@@ -202,8 +202,8 @@ class MisterControllerState:
             try:
                 self.rachio.stop_watering(self.valve_id)
                 self.is_misting = False
-            except:
-                pass
+            except Exception as e:
+                logger.error(f"Emergency stop failed: {e}")
         
         self.is_running = False
         logger.info("Controller stopped")
