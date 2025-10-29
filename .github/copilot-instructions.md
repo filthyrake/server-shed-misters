@@ -137,7 +137,8 @@ server_shed_misters/
 ├── standalone_controller.py   # Standalone controller (with SmartHoseTimerAPI)
 ├── mister_controller.py       # Core controller logic and SwitchBot integration
 ├── state_manager.py          # State persistence
-├── docker-compose.yml        # Docker development config
+├── docker-compose.yml        # Docker base config
+├── docker-compose.override.yml # Docker development overrides (hot reload)
 ├── docker-compose.prod.yml   # Docker production config
 ├── Dockerfile               # Container image
 ├── requirements-web.txt     # Python dependencies

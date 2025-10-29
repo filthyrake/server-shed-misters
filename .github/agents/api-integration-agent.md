@@ -67,9 +67,8 @@ import time
 import hashlib
 import hmac
 import base64
-import uuid
 
-nonce = uuid.uuid4().hex
+nonce = ""
 timestamp = str(int(time.time() * 1000))
 string_to_sign = f"{token}{timestamp}{nonce}"
 sign = base64.b64encode(
