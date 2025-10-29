@@ -85,10 +85,16 @@ Enforces a minimum interval between valve operations to prevent hardware damage.
 
 **Implementation:**
 ```python
-def _check_valve_action_safety(self):
-    """Ensures minimum 30 seconds between valve actions"""
-    if last_action < 30 seconds ago:
-        return False, "Hardware safety: Wait Xs before next valve action"
+def _check_valve_action_safety(self) -> tuple[bool, str]:
+    """Check if it's safe to perform a valve action (hardware safety delay)"""
+    if self._last_valve_action_time is None:
+        return True, "OK"
+    
+    elapsed = time.time() - self._last_valve_action_time
+    if elapsed < self.MIN_VALVE_ACTION_INTERVAL:
+        remaining = int(self.MIN_VALVE_ACTION_INTERVAL - elapsed)
+        return False, f"Hardware safety: Wait {remaining}s before next valve action"
+    
     return True, "OK"
 ```
 
@@ -100,9 +106,16 @@ The stop operation can override the safety delay if misting is currently active,
 Start operation includes additional checks to prevent thread spawning race conditions:
 
 ```python
-# Check if a thread is already starting/running
-if self.controller_thread and self.controller_thread.is_alive():
-    return False, "Controller thread is already active"
+def start(self):
+    with self._state_lock:  # Thread-safe critical section
+        if self.is_running:
+            return False, "Controller is already running"
+        
+        # Check if a thread is already starting/running to prevent race conditions
+        if self.controller_thread and self.controller_thread.is_alive():
+            return False, "Controller thread is already active"
+        
+        # ... start the controller thread
 ```
 
 This prevents the scenario where multiple start requests could spawn multiple controller threads.
@@ -194,9 +207,9 @@ No additional environment variables are required for the security features. The 
 To modify rate limits, edit `api_server.py`:
 
 ```python
-@app.post("/api/start")
+@app.post("/api/pause")
 @limiter.limit("10/minute")  # Change from 5 to 10
-async def start_controller(request: Request) -> ControlResponse:
+async def pause_controller(request: Request) -> ControlResponse:
     ...
 ```
 
