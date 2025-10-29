@@ -51,10 +51,15 @@ When you assign an issue to Copilot:
 3. Agents provide focused expertise for their specific domains
 
 ### For Custom Agents
-To invoke a custom agent, reference it in your issue or PR comments:
-```
-@copilot use hardware-safety-agent to review this change
-```
+Custom agents are automatically available to Copilot when working on issues. They provide specialized expertise based on the task context. Copilot will select the appropriate agent based on:
+- The issue description and labels
+- The files being modified
+- The type of changes requested
+
+To help Copilot choose the right agent, include relevant keywords in your issue description:
+- For hardware safety: "valve control", "misting logic", "safety review"
+- For API changes: "SwitchBot API", "Rachio integration", "device discovery"
+- For deployment: "Docker", "deployment", "production configuration"
 
 ## Best Practices
 
@@ -66,6 +71,8 @@ To invoke a custom agent, reference it in your issue or PR comments:
 
 ## References
 
-- [GitHub Copilot Coding Agent Documentation](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent)
-- [Custom Agents Guide](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-custom-agents)
-- [Best Practices](https://github.blog/ai-and-ml/github-copilot/onboarding-your-ai-peer-programmer-setting-up-github-copilot-coding-agent-for-success/)
+For more information about GitHub Copilot coding agent and custom agents:
+- [GitHub Copilot Coding Agent Documentation](https://docs.github.com/en/copilot)
+- [GitHub Copilot Best Practices Blog](https://github.blog/tag/copilot/)
+
+Note: GitHub documentation and features may evolve. Check the official GitHub docs for the latest information.
