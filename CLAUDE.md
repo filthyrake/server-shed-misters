@@ -34,14 +34,11 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 ### Setup and Diagnostic Tools
 ```bash
-# Verify API credentials and connections
-python tools/verify_setup.py
-
-# Interactive setup wizard  
-python tools/setup_wizard.py
-
-# Find all available devices and IDs
+# Find all available devices and IDs (SwitchBot Hub 2 and Rachio Smart Hose Timer)
 python tools/find_devices.py
+
+# Note: tools/verify_setup.py and tools/setup_wizard.py are deprecated
+# (designed for traditional Rachio controllers, not Smart Hose Timer)
 ```
 
 ### Production Deployment
@@ -64,13 +61,16 @@ The system uses a **threaded architecture** where the main FastAPI web server ru
 1. **`api_server.py`**: FastAPI web server with embedded background controller thread
 2. **`MisterControllerState`**: Global state manager that runs the sensor monitoring loop in a separate thread
 3. **`state_manager.py`**: Handles persistence across restarts, crash detection, and pause/resume state
-4. **`mister_controller.py`**: Core API wrappers and business logic for SwitchBot integration
-5. **`standalone_controller.py`**: Contains `SmartHoseTimerAPI` class for Rachio integration
+4. **`mister_controller.py`**: Core API clients (`SwitchBotAPI` and `SmartHoseTimerAPI`) and data models
+5. **`standalone_controller.py`**: Standalone controller that can run without web UI
+6. **`decision_engine.py`**: Centralized misting decision logic shared by api_server and standalone_controller
 
 ### API Integration Pattern
 The project integrates with two different API architectures:
 - **SwitchBot**: Traditional REST API at `api.switch-bot.com` with HMAC-SHA256 authentication
-- **Rachio Smart Hose Timer**: Uses `cloud-rest.rach.io` endpoint with Bearer token authentication (different from traditional Rachio controllers)
+- **Rachio Smart Hose Timer**: Uses `cloud-rest.rach.io` endpoint with Bearer token authentication
+
+**IMPORTANT**: This system supports **Rachio Smart Hose Timer ONLY**, not traditional Rachio irrigation controllers. The Smart Hose Timer uses a completely different API (`cloud-rest.rach.io`) than traditional controllers (`api.rach.io`).
 
 ### State Management
 The system maintains persistent state in `./data/state.json` including:

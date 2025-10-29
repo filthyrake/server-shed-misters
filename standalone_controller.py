@@ -2,10 +2,9 @@
 
 import os
 import time
-import requests
 from datetime import datetime
 from dotenv import load_dotenv
-from mister_controller import SwitchBotAPI, SensorReading, MisterConfig
+from mister_controller import SwitchBotAPI, SmartHoseTimerAPI, SensorReading, MisterConfig
 from decision_engine import MistingDecisionEngine
 import logging
 
@@ -14,67 +13,6 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-class SmartHoseTimerAPI:
-    """API client for Rachio Smart Hose Timer"""
-    
-    def __init__(self, api_token: str):
-        self.api_token = api_token
-        self.base_url = "https://cloud-rest.rach.io"
-        
-    def _make_request(self, endpoint: str, method: str = "GET", data: dict = None):
-        headers = {
-            "Authorization": f"Bearer {self.api_token}",
-            "Content-Type": "application/json"
-        }
-        
-        url = f"{self.base_url}{endpoint}"
-        
-        try:
-            if method == "GET":
-                response = requests.get(url, headers=headers, timeout=(10, 30))
-            elif method == "PUT":
-                response = requests.put(url, headers=headers, json=data, timeout=(10, 30))
-            else:
-                response = requests.post(url, headers=headers, json=data, timeout=(10, 30))
-            
-            if response.status_code == 200:
-                return response.json() if response.content else {"success": True}
-            elif response.status_code == 204:
-                return {"success": True}
-            else:
-                logger.error(f"Smart Hose Timer API error {response.status_code}: {response.text}")
-                return None
-        except requests.RequestException as e:
-            logger.error(f"Smart Hose Timer API exception: {e}")
-            return None
-    
-    def start_watering(self, valve_id: str, duration_seconds: int) -> bool:
-        """Start watering for the specified duration"""
-        logger.info(f"Starting valve {valve_id} for {duration_seconds} seconds")
-        
-        result = self._make_request("/valve/startWatering", "PUT", {
-            "valveId": valve_id,
-            "durationSeconds": duration_seconds
-        })
-        
-        return result is not None
-    
-    def stop_watering(self, valve_id: str) -> bool:
-        """Stop watering"""
-        logger.info(f"Stopping valve {valve_id}")
-        
-        result = self._make_request("/valve/stopWatering", "PUT", {
-            "valveId": valve_id
-        })
-        
-        return result is not None
-    
-    def get_valve_status(self, valve_id: str) -> dict:
-        """Get valve status"""
-        # This would require finding the right endpoint for valve status
-        # For now, we'll rely on our own state tracking
-        return {}
 
 class FinalMisterController:
     def __init__(self):
