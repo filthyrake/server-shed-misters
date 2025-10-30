@@ -66,7 +66,7 @@ class FinalMisterController:
         
         # Log restart info
         stats = self.state_manager.get_stats()
-        logger.info(f"State loaded - Restarts: {stats['restart_count']}, Crashes: {stats['crash_count']}")
+        logger.info(f"System initialized - Restarts: {stats['restart_count']}, Crashes: {stats['crash_count']}")
         if self.last_mister_start:
             logger.info(f"Restored last mister start time: {self.last_mister_start}")
     
