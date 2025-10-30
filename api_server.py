@@ -20,6 +20,7 @@ from slowapi.errors import RateLimitExceeded
 from mister_controller import SwitchBotAPI, SmartHoseTimerAPI, SensorReading, MisterConfig
 from state_manager import StateManager
 from decision_engine import MistingDecisionEngine
+from config_validator import ConfigValidator, ValidationLevel
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -113,6 +114,13 @@ class MisterControllerState:
                 check_interval_seconds=int(os.environ.get("CHECK_INTERVAL", 60)),
                 cooldown_seconds=int(os.environ.get("COOLDOWN_SECONDS", 300))
             )
+            
+            # Validate configuration
+            validation_issues = ConfigValidator.validate_config(self.config)
+            ConfigValidator.log_validation_results(validation_issues, self.config)
+            
+            if ConfigValidator.has_critical_issues(validation_issues):
+                raise ValueError("Configuration validation failed with critical errors")
             
             logger.info("APIs initialized successfully")
             
@@ -356,6 +364,39 @@ async def get_web_ui():
             text-align: center;
             margin: 10px 0;
         }
+        .config-warnings {
+            margin-bottom: 15px;
+        }
+        .warning-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .warning-critical {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+            color: #c62828;
+        }
+        .warning-warning {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            color: #e65100;
+        }
+        .warning-info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            color: #1565c0;
+        }
+        .validation-ok {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            color: #2e7d32;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -379,6 +420,7 @@ async def get_web_ui():
     
     <div class="card">
         <h2>Configuration</h2>
+        <div id="config-warnings"></div>
         <div id="config-content">Loading...</div>
     </div>
 
@@ -395,6 +437,32 @@ async def get_web_ui():
             const secs = seconds % 60;
             if (mins > 0) return `${mins}m ${secs}s`;
             return `${secs}s`;
+        }
+        
+        async function updateConfigValidation() {
+            try {
+                const response = await fetch('/api/config/validate');
+                const data = await response.json();
+                
+                const warningsDiv = document.getElementById('config-warnings');
+                
+                if (data.valid && (!data.issues || data.issues.length === 0)) {
+                    warningsDiv.innerHTML = '<div class="validation-ok">✓ Configuration is valid</div>';
+                } else if (data.issues && data.issues.length > 0) {
+                    const issuesHtml = data.issues.map(issue => {
+                        let icon = '';
+                        if (issue.level === 'critical') icon = '❌';
+                        else if (issue.level === 'warning') icon = '⚠️';
+                        else icon = 'ℹ️';
+                        
+                        return `<div class="warning-item warning-${issue.level}">${icon} ${issue.message}</div>`;
+                    }).join('');
+                    
+                    warningsDiv.innerHTML = issuesHtml;
+                }
+            } catch (error) {
+                console.error('Failed to fetch validation:', error);
+            }
         }
         
         async function updateStatus() {
@@ -511,6 +579,7 @@ async def get_web_ui():
         
         // Initial load and auto-refresh
         updateStatus();
+        updateConfigValidation();
         setInterval(updateStatus, 5000);
     </script>
 </body>
@@ -585,6 +654,32 @@ async def start_controller(request: Request) -> ControlResponse:
         message=message,
         new_status="running" if success else "stopped"
     )
+
+@app.get("/api/config/validate")
+async def validate_configuration():
+    """Validate current configuration and return any issues"""
+    validation_issues = ConfigValidator.validate_config(state.config)
+    
+    return {
+        "valid": not ConfigValidator.has_critical_issues(validation_issues),
+        "has_warnings": any(i.level == ValidationLevel.WARNING for i in validation_issues),
+        "issues": [
+            {
+                "level": issue.level.value,
+                "message": issue.message
+            }
+            for issue in validation_issues
+        ],
+        "config": {
+            "temperature_threshold_high": state.config.temperature_threshold_high,
+            "temperature_threshold_low": state.config.temperature_threshold_low,
+            "humidity_threshold_low": state.config.humidity_threshold_low,
+            "humidity_threshold_high": state.config.humidity_threshold_high,
+            "mister_duration_seconds": state.config.mister_duration_seconds,
+            "check_interval_seconds": state.config.check_interval_seconds,
+            "cooldown_seconds": state.config.cooldown_seconds
+        }
+    }
 
 @app.get("/health")
 async def health_check():

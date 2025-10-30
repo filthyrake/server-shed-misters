@@ -6,6 +6,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from mister_controller import SwitchBotAPI, SmartHoseTimerAPI, SensorReading, MisterConfig
 from decision_engine import MistingDecisionEngine
+from config_validator import ConfigValidator
 import logging
 
 logging.basicConfig(
@@ -46,6 +47,13 @@ class FinalMisterController:
             check_interval_seconds=int(os.environ.get("CHECK_INTERVAL", 60)),
             cooldown_seconds=int(os.environ.get("COOLDOWN_SECONDS", 300))
         )
+        
+        # Validate configuration
+        validation_issues = ConfigValidator.validate_config(self.config)
+        ConfigValidator.log_validation_results(validation_issues, self.config)
+        
+        if ConfigValidator.has_critical_issues(validation_issues):
+            raise ValueError("Configuration validation failed with critical errors")
         
         # State tracking
         self.last_mister_start = None
