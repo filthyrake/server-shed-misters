@@ -9,7 +9,7 @@ and warnings (allow but log).
 """
 
 import logging
-from typing import List, Tuple
+from typing import List
 from dataclasses import dataclass
 from enum import Enum
 
@@ -108,9 +108,9 @@ class ConfigValidator:
             ))
         
         # Check logical consistency
-        # Note: TEMP_HIGH triggers misting start (temp > TEMP_HIGH)
-        # TEMP_LOW triggers misting stop (temp < TEMP_LOW)
-        # They can be equal (e.g., both 95°F) for single threshold operation
+        # TEMP_HIGH triggers misting start (when temp > TEMP_HIGH), TEMP_LOW triggers misting stop (when temp < TEMP_LOW).
+        # When TEMP_HIGH and TEMP_LOW differ, this creates hysteresis (misting only starts above TEMP_HIGH and stops below TEMP_LOW).
+        # When equal, acts as a single threshold with no hysteresis (misting starts and stops at the same temperature).
         if config.temperature_threshold_low > config.temperature_threshold_high:
             issues.append(ValidationIssue(
                 ValidationLevel.CRITICAL,
@@ -192,7 +192,7 @@ class ConfigValidator:
         elif config.mister_duration_seconds > ConfigValidator.MAX_MISTER_DURATION:
             issues.append(ValidationIssue(
                 ValidationLevel.CRITICAL,
-                f"MISTER_DURATION={config.mister_duration_seconds}s is too long (maximum {ConfigValidator.MAX_MISTER_DURATION}s / 2 hours)"
+                f"MISTER_DURATION={config.mister_duration_seconds}s is too long (maximum {ConfigValidator.MAX_MISTER_DURATION}s / {ConfigValidator.MAX_MISTER_DURATION // 3600} hours)"
             ))
         
         # Check interval validation
@@ -231,7 +231,7 @@ class ConfigValidator:
         if config.check_interval_seconds >= config.mister_duration_seconds:
             issues.append(ValidationIssue(
                 ValidationLevel.WARNING,
-                f"CHECK_INTERVAL={config.check_interval_seconds}s should be < MISTER_DURATION={config.mister_duration_seconds}s to allow condition checking during misting (can't stop early if conditions change)"
+                f"CHECK_INTERVAL={config.check_interval_seconds}s is greater than or equal to MISTER_DURATION={config.mister_duration_seconds}s. This prevents condition checks during misting, so the system cannot stop misting early if conditions change mid-cycle."
             ))
         
         # Cooldown vs mister duration

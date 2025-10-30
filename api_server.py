@@ -446,7 +446,7 @@ async def get_web_ui():
                 
                 const warningsDiv = document.getElementById('config-warnings');
                 
-                if (data.valid && !data.has_warnings) {
+                if (data.valid && (!data.issues || data.issues.length === 0)) {
                     warningsDiv.innerHTML = '<div class="validation-ok">✓ Configuration is valid</div>';
                 } else if (data.issues && data.issues.length > 0) {
                     const issuesHtml = data.issues.map(issue => {
