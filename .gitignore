@@ -26,6 +26,7 @@ ENV/
 # Allow specific application files with these patterns
 !secrets_loader.py
 !*setup-secrets.sh
+!docs/secrets_demo.md
 
 # Allow secrets directory structure files
 !secrets/
