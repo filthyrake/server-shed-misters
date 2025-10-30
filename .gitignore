@@ -23,6 +23,10 @@ ENV/
 !*example*
 !*template*
 
+# Allow specific application files with these patterns
+!secrets_loader.py
+!*setup-secrets.sh
+
 # Allow secrets directory structure files
 !secrets/
 !secrets/.gitignore
