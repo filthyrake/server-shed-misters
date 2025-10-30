@@ -39,7 +39,7 @@ fi
 # Set up Docker secrets
 echo "🔐 Setting up Docker secrets..."
 if [ -f "$DEPLOY_DIR/scripts/setup-secrets.sh" ]; then
-    cd $DEPLOY_DIR
+    cd "$DEPLOY_DIR"
     ./scripts/setup-secrets.sh
 else
     echo "⚠️  Warning: setup-secrets.sh not found, skipping secrets setup"

@@ -24,10 +24,6 @@ services:
       - MISTER_DURATION=${MISTER_DURATION:-600}
       - CHECK_INTERVAL=${CHECK_INTERVAL:-60}
       - COOLDOWN_SECONDS=${COOLDOWN_SECONDS:-300}
-      # Fallback: Allow env vars for development/backward compatibility
-      - SWITCHBOT_TOKEN=${SWITCHBOT_TOKEN:-}
-      - SWITCHBOT_SECRET=${SWITCHBOT_SECRET:-}
-      - RACHIO_API_TOKEN=${RACHIO_API_TOKEN:-}
     volumes:
       - mister-data:/app/data
       - /etc/localtime:/etc/localtime:ro

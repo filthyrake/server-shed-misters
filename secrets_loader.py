@@ -50,25 +50,25 @@ def load_secret(secret_name: str, env_var_name: Optional[str] = None) -> Optiona
             file_size = secret_file.stat().st_size
             if file_size > MAX_SECRET_SIZE:
                 # Don't log file name to avoid potential sensitive info leakage
-                logger.warning(f"Credential file too large ({file_size} bytes), skipping")  # nosec
+                logger.warning(f"Secret file '{secret_name}' is too large ({file_size} bytes), skipping")  # nosec
                 return None
             
-            value = secret_file.read_text(encoding='utf-8').strip()
+            value = secret_file.read_text(encoding='utf-8').rstrip('\n\r')
             if value:
                 # Log metadata only, never the actual secret value
                 # secret_name is safe to log (e.g., "switchbot_token" not the actual token)
-                logger.info(f"Loaded credential from Docker secrets file")  # nosec - logging metadata, not secret value
+                logger.info(f"Loaded secret '{secret_name}' from Docker secrets")  # nosec - logging metadata, not secret value
                 return value
         except Exception as e:
             # Don't expose file system details in logs
-            logger.warning(f"Failed to read credential file: {type(e).__name__}")  # nosec - logging error type, not secret
+            logger.warning(f"Failed to read secret file '{secret_name}': {type(e).__name__}")  # nosec - logging error type, not secret
     
     # Fallback to environment variable
     if env_var_name:
         value = os.environ.get(env_var_name)
         if value:
             # Log metadata only, never the actual secret value
-            logger.info(f"Loaded credential from environment variable")  # nosec - logging metadata, not secret value
+            logger.info(f"Loaded secret '{secret_name}' from environment variable {env_var_name}")  # nosec - logging metadata, not secret value
             return value
     
     return None
