@@ -15,12 +15,19 @@ ENV/
 !.env.example
 
 # API Keys and Secrets (extra protection)
+# Ignore any files with these patterns EXCEPT in secrets directory
 *token*
 *secret*
 *key*
 *credentials*
 !*example*
 !*template*
+
+# Allow secrets directory structure files
+!secrets/
+!secrets/.gitignore
+!secrets/README.md
+!secrets/*.example
 
 # IDE
 .vscode/
