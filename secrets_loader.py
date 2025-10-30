@@ -49,22 +49,26 @@ def load_secret(secret_name: str, env_var_name: Optional[str] = None) -> Optiona
             MAX_SECRET_SIZE = 1024  # 1KB should be more than enough for any API token
             file_size = secret_file.stat().st_size
             if file_size > MAX_SECRET_SIZE:
-                logger.warning(f"Secret file '{secret_name}' is too large ({file_size} bytes), skipping")
+                # Don't log file name to avoid potential sensitive info leakage
+                logger.warning(f"Credential file too large ({file_size} bytes), skipping")  # nosec
                 return None
             
             value = secret_file.read_text(encoding='utf-8').strip()
             if value:
-                logger.info(f"Loaded secret '{secret_name}' from Docker secrets")
+                # Log metadata only, never the actual secret value
+                # secret_name is safe to log (e.g., "switchbot_token" not the actual token)
+                logger.info(f"Loaded credential from Docker secrets file")  # nosec - logging metadata, not secret value
                 return value
         except Exception as e:
             # Don't expose file system details in logs
-            logger.warning(f"Failed to read secret file '{secret_name}': {type(e).__name__}")
+            logger.warning(f"Failed to read credential file: {type(e).__name__}")  # nosec - logging error type, not secret
     
     # Fallback to environment variable
     if env_var_name:
         value = os.environ.get(env_var_name)
         if value:
-            logger.info(f"Loaded secret '{secret_name}' from environment variable {env_var_name}")
+            # Log metadata only, never the actual secret value
+            logger.info(f"Loaded credential from environment variable")  # nosec - logging metadata, not secret value
             return value
     
     return None
@@ -102,7 +106,8 @@ class APICredentials:
         self.switchbot_secret = load_required_secret("switchbot_secret", "SWITCHBOT_SECRET")
         self.rachio_api_token = load_required_secret("rachio_api_token", "RACHIO_API_TOKEN")
         
-        logger.info("Successfully loaded all API credentials")
+        # Log successful initialization without details
+        logger.info("API credentials initialized successfully")  # nosec - no sensitive data logged
     
     def __repr__(self):
         """Return safe representation without exposing credentials."""
