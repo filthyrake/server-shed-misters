@@ -44,12 +44,21 @@ def load_secret(secret_name: str, env_var_name: Optional[str] = None) -> Optiona
     secret_file = SECRETS_DIR / secret_name
     if secret_file.exists():
         try:
-            value = secret_file.read_text().strip()
+            # Use explicit encoding and limit file size for security
+            # Secrets should be small (< 1KB for API tokens)
+            MAX_SECRET_SIZE = 1024  # 1KB should be more than enough for any API token
+            file_size = secret_file.stat().st_size
+            if file_size > MAX_SECRET_SIZE:
+                logger.warning(f"Secret file '{secret_name}' is too large ({file_size} bytes), skipping")
+                return None
+            
+            value = secret_file.read_text(encoding='utf-8').strip()
             if value:
                 logger.info(f"Loaded secret '{secret_name}' from Docker secrets")
                 return value
         except Exception as e:
-            logger.warning(f"Failed to read secret file {secret_file}: {e}")
+            # Don't expose file system details in logs
+            logger.warning(f"Failed to read secret file '{secret_name}': {type(e).__name__}")
     
     # Fallback to environment variable
     if env_var_name:

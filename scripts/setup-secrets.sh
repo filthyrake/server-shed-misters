@@ -21,8 +21,11 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
-# Source .env file
-source .env
+# Parse .env file securely (only extract required variables, don't source entire file)
+# This prevents accidentally exposing all environment variables
+SWITCHBOT_TOKEN=$(grep -E "^SWITCHBOT_TOKEN=" .env | cut -d'=' -f2- | sed 's/^"\(.*\)"$/\1/' | sed "s/^'\(.*\)'$/\1/")
+SWITCHBOT_SECRET=$(grep -E "^SWITCHBOT_SECRET=" .env | cut -d'=' -f2- | sed 's/^"\(.*\)"$/\1/' | sed "s/^'\(.*\)'$/\1/")
+RACHIO_API_TOKEN=$(grep -E "^RACHIO_API_TOKEN=" .env | cut -d'=' -f2- | sed 's/^"\(.*\)"$/\1/' | sed "s/^'\(.*\)'$/\1/")
 
 # Validate required variables
 if [ -z "$SWITCHBOT_TOKEN" ] || [ -z "$SWITCHBOT_SECRET" ] || [ -z "$RACHIO_API_TOKEN" ]; then
