@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from mister_controller import SwitchBotAPI, SmartHoseTimerAPI, SensorReading, MisterConfig
 from decision_engine import MistingDecisionEngine
 from config_validator import ConfigValidator
+from state_manager import StateManager
 import logging
 
 logging.basicConfig(
@@ -56,9 +57,18 @@ class FinalMisterController:
         if ConfigValidator.has_critical_issues(validation_issues):
             raise ValueError("Configuration validation failed with critical errors")
         
-        # State tracking
-        self.last_mister_start = None
+        # Initialize state manager for persistence
+        self.state_manager = StateManager()
+        
+        # State tracking - load from persistent state
+        self.last_mister_start = self.state_manager.get_last_mister_start()
         self.is_misting = False
+        
+        # Log restart info
+        stats = self.state_manager.get_stats()
+        logger.info(f"State loaded - Restarts: {stats['restart_count']}, Crashes: {stats['crash_count']}")
+        if self.last_mister_start:
+            logger.info(f"Restored last mister start time: {self.last_mister_start}")
     
     def setup(self):
         """Test connections and display configuration"""
@@ -125,6 +135,7 @@ class FinalMisterController:
                         if self.rachio.start_watering(self.valve_id, self.config.mister_duration_seconds):
                             self.is_misting = True
                             self.last_mister_start = datetime.now(ZoneInfo("localtime"))
+                            self.state_manager.record_mister_start(self.last_mister_start)
                             logger.info(f"✅ Mister started successfully for {self.config.mister_duration_seconds}s")
                         else:
                             logger.error("❌ Failed to start mister")
@@ -187,6 +198,7 @@ class FinalMisterController:
                 if self.is_misting:
                     logger.info("Stopping mister before exit...")
                     self.rachio.stop_watering(self.valve_id)
+                self.state_manager.graceful_shutdown()
                 break
             except Exception as e:
                 logger.error(f"❌ Unexpected error: {e}")
