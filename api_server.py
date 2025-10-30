@@ -20,7 +20,7 @@ from slowapi.errors import RateLimitExceeded
 from mister_controller import SwitchBotAPI, SmartHoseTimerAPI, SensorReading, MisterConfig
 from state_manager import StateManager
 from decision_engine import MistingDecisionEngine
-from config_validator import ConfigValidator
+from config_validator import ConfigValidator, ValidationLevel
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -658,8 +658,6 @@ async def start_controller(request: Request) -> ControlResponse:
 @app.get("/api/config/validate")
 async def validate_configuration():
     """Validate current configuration and return any issues"""
-    from config_validator import ValidationLevel
-    
     validation_issues = ConfigValidator.validate_config(state.config)
     
     return {
