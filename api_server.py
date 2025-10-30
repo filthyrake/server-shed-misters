@@ -658,11 +658,13 @@ async def start_controller(request: Request) -> ControlResponse:
 @app.get("/api/config/validate")
 async def validate_configuration():
     """Validate current configuration and return any issues"""
+    from config_validator import ValidationLevel
+    
     validation_issues = ConfigValidator.validate_config(state.config)
     
     return {
         "valid": not ConfigValidator.has_critical_issues(validation_issues),
-        "has_warnings": any(i.level.value == "warning" for i in validation_issues),
+        "has_warnings": any(i.level == ValidationLevel.WARNING for i in validation_issues),
         "issues": [
             {
                 "level": issue.level.value,

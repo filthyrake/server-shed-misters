@@ -108,10 +108,13 @@ class ConfigValidator:
             ))
         
         # Check logical consistency
+        # Note: TEMP_HIGH triggers misting start (temp > TEMP_HIGH)
+        # TEMP_LOW triggers misting stop (temp < TEMP_LOW)
+        # They can be equal (e.g., both 95°F) for single threshold operation
         if config.temperature_threshold_low > config.temperature_threshold_high:
             issues.append(ValidationIssue(
                 ValidationLevel.CRITICAL,
-                f"TEMP_LOW={config.temperature_threshold_low}°F should be <= TEMP_HIGH={config.temperature_threshold_high}°F"
+                f"TEMP_LOW={config.temperature_threshold_low}°F should be <= TEMP_HIGH={config.temperature_threshold_high}°F (start and stop thresholds)"
             ))
         
         # Warning for unusual values
@@ -224,10 +227,11 @@ class ConfigValidator:
         issues = []
         
         # Check interval vs mister duration
+        # If check interval >= duration, system won't check conditions while misting
         if config.check_interval_seconds >= config.mister_duration_seconds:
             issues.append(ValidationIssue(
                 ValidationLevel.WARNING,
-                f"CHECK_INTERVAL={config.check_interval_seconds}s should be < MISTER_DURATION={config.mister_duration_seconds}s to allow condition checking during misting"
+                f"CHECK_INTERVAL={config.check_interval_seconds}s should be < MISTER_DURATION={config.mister_duration_seconds}s to allow condition checking during misting (can't stop early if conditions change)"
             ))
         
         # Cooldown vs mister duration
