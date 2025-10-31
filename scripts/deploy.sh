@@ -36,11 +36,26 @@ if [ ! -f "$DEPLOY_DIR/.env" ]; then
     exit 1
 fi
 
+# Set up Docker secrets
+echo "🔐 Setting up Docker secrets..."
+if [ -f "$DEPLOY_DIR/scripts/setup-secrets.sh" ]; then
+    cd "$DEPLOY_DIR"
+    ./scripts/setup-secrets.sh
+else
+    echo "⚠️  Warning: setup-secrets.sh not found, skipping secrets setup"
+    echo "   Secrets will need to be configured manually or using environment variables"
+fi
+
 # Set permissions
 echo "🔒 Setting permissions..."
 chown -R root:docker $DEPLOY_DIR
 chmod -R 755 $DEPLOY_DIR
 chmod 600 $DEPLOY_DIR/.env
+# Set restrictive permissions for secrets directory
+if [ -d "$DEPLOY_DIR/secrets" ]; then
+    chmod 700 $DEPLOY_DIR/secrets
+    chmod 600 $DEPLOY_DIR/secrets/* 2>/dev/null || true
+fi
 
 # Install systemd service
 echo "⚙️ Installing systemd service..."

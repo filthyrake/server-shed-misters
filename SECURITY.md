@@ -122,6 +122,41 @@ This prevents the scenario where multiple start requests could spawn multiple co
 
 ## Security Best Practices
 
+### Credential Management
+
+**Docker Secrets (Recommended for Production)**
+
+The application uses Docker secrets to securely store API credentials:
+
+```bash
+# Set up secrets from .env file
+./scripts/setup-secrets.sh
+
+# Verify secrets are configured
+ls -l secrets/
+# Should show switchbot_token, switchbot_secret, rachio_api_token with 600 permissions
+```
+
+**Benefits:**
+- ✅ Credentials NOT visible in `docker inspect` output
+- ✅ Credentials NOT visible in process lists
+- ✅ Credentials NOT logged in container metadata
+- ✅ Secrets stored as files with OS-level permissions
+- ✅ Secrets can be encrypted at rest
+
+**Verification:**
+```bash
+# Check that credentials are NOT in docker inspect
+docker inspect mister-controller | grep -i token
+# Should show empty or placeholder values, not actual tokens
+
+# Check that secrets are loaded correctly
+docker-compose logs | grep "Loaded secret"
+# Should show: "Loaded secret 'switchbot_token' from Docker secrets"
+```
+
+For detailed setup instructions, see [secrets/README.md](secrets/README.md).
+
 ### Network Security
 While the API includes rate limiting and state validation, it should still be protected at the network level:
 

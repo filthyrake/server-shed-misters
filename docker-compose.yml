@@ -7,10 +7,13 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    # Secrets mounted as files in /run/secrets/ - preferred for production
+    secrets:
+      - switchbot_token
+      - switchbot_secret
+      - rachio_api_token
     environment:
-      - SWITCHBOT_TOKEN=${SWITCHBOT_TOKEN}
-      - SWITCHBOT_SECRET=${SWITCHBOT_SECRET}
-      - RACHIO_API_TOKEN=${RACHIO_API_TOKEN}
+      # Non-sensitive configuration (kept as environment variables)
       - HUB2_DEVICE_ID=${HUB2_DEVICE_ID}
       - RACHIO_BASE_STATION_ID=${RACHIO_BASE_STATION_ID}
       - RACHIO_VALVE_ID=${RACHIO_VALVE_ID}
@@ -36,6 +39,16 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+# Docker secrets configuration
+# Secrets are read from files, which are not visible in docker inspect
+secrets:
+  switchbot_token:
+    file: ./secrets/switchbot_token
+  switchbot_secret:
+    file: ./secrets/switchbot_secret
+  rachio_api_token:
+    file: ./secrets/rachio_api_token
 
 volumes:
   mister-data:
