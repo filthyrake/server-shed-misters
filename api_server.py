@@ -21,6 +21,7 @@ from mister_controller import SwitchBotAPI, SmartHoseTimerAPI, SensorReading, Mi
 from state_manager import StateManager
 from decision_engine import MistingDecisionEngine
 from config_validator import ConfigValidator, ValidationLevel
+from secrets_loader import APICredentials
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -92,12 +93,11 @@ class MisterControllerState:
     
     def _setup_apis(self):
         try:
-            switchbot_token = os.environ.get("SWITCHBOT_TOKEN")
-            switchbot_secret = os.environ.get("SWITCHBOT_SECRET")
-            rachio_token = os.environ.get("RACHIO_API_TOKEN")
-            
-            if not all([switchbot_token, switchbot_secret, rachio_token]):
-                raise ValueError("Missing API credentials")
+            # Load API credentials securely from Docker secrets or environment variables
+            creds = APICredentials()
+            switchbot_token = creds.switchbot_token
+            switchbot_secret = creds.switchbot_secret
+            rachio_token = creds.rachio_api_token
             
             self.switchbot = SwitchBotAPI(switchbot_token, switchbot_secret)
             self.rachio = SmartHoseTimerAPI(rachio_token)

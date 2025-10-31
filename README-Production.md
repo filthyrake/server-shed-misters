@@ -224,9 +224,40 @@ sudo /opt/mister-controller/scripts/restore.sh /path/to/backup.tar.gz
 ## Security Considerations
 
 ### Credentials
+
+**Docker Secrets (Recommended)**
+
+The application supports Docker secrets for secure credential management:
+
+```bash
+# Set up secrets from .env file
+./scripts/setup-secrets.sh
+
+# Deploy with secrets
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Verify secrets are being used
+docker-compose logs | grep "Loaded secret"
+```
+
+**Benefits:**
+- Credentials NOT visible in `docker inspect` output
+- Credentials NOT visible in process lists
+- Secrets stored as files with 600 permissions
+- Better security than environment variables
+
+**Alternative: Environment Variables (Development)**
+
+For development, you can still use `.env` file:
 - Store `.env` file with restricted permissions (600)
-- Use environment variables for sensitive data
-- Rotate API tokens periodically
+- Never commit `.env` to version control
+- Use Docker secrets for production deployments
+
+**Best Practices:**
+- Rotate API tokens periodically (quarterly recommended)
+- Use different credentials for dev/staging/production
+- Monitor for unauthorized access in API provider dashboards
+- Review [secrets/README.md](secrets/README.md) for detailed setup
 
 ### Network Security
 - Run behind reverse proxy (nginx/traefik) in production

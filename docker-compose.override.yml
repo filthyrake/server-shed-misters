@@ -14,3 +14,7 @@ services:
     # Add development environment variables if needed
     environment:
       - PYTHONUNBUFFERED=1
+      # Development: Allow env vars as fallback when secrets not configured
+      - SWITCHBOT_TOKEN=${SWITCHBOT_TOKEN:-}
+      - SWITCHBOT_SECRET=${SWITCHBOT_SECRET:-}
+      - RACHIO_API_TOKEN=${RACHIO_API_TOKEN:-}

@@ -98,6 +98,31 @@ COOLDOWN_SECONDS=300  # seconds (5 minutes)
 
 ### Rachio API
 1. Visit https://app.rach.io/
+
+### Secure Credential Storage
+
+**For Production (Docker Secrets - Recommended):**
+```bash
+# 1. Add credentials to .env file
+# 2. Set up Docker secrets
+./scripts/setup-secrets.sh
+
+# 3. Deploy with secrets
+docker-compose up -d
+
+# 4. Verify secrets are loaded
+docker-compose logs | grep "Loaded secret"
+```
+
+**For Development (.env file):**
+```bash
+# Just use .env file directly
+cp .env.example .env
+# Edit .env with your credentials
+docker-compose up -d
+```
+
+Docker secrets provide better security by keeping credentials out of `docker inspect` output and process lists. See [secrets/README.md](secrets/README.md) for details.
 2. Go to Account Settings
 3. Click "GET API KEY"
 
