@@ -37,6 +37,7 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 # Find all available devices and IDs (SwitchBot Hub 2 and Rachio Smart Hose Timer)
 python tools/find_devices.py
 
+# Note: For SwitchBot Device Discovery, use the SwitchBot app or API
 # Note: tools/verify_setup.py and tools/setup_wizard.py are deprecated
 # (designed for traditional Rachio controllers, not Smart Hose Timer)
 ```
