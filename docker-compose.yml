@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   mister-controller:
@@ -15,7 +15,6 @@ services:
     environment:
       # Non-sensitive configuration (kept as environment variables)
       - HUB2_DEVICE_ID=${HUB2_DEVICE_ID}
-      - RACHIO_BASE_STATION_ID=${RACHIO_BASE_STATION_ID}
       - RACHIO_VALVE_ID=${RACHIO_VALVE_ID}
       - TEMP_HIGH=${TEMP_HIGH:-95}
       - TEMP_LOW=${TEMP_LOW:-95}
