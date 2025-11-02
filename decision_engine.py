@@ -23,7 +23,20 @@ class MistingDecisionEngine:
     timing constraints.
     """
     
-
+    @staticmethod
+    def _validate_timezone_aware(dt: Optional[datetime], param_name: str = "datetime") -> None:
+        """
+        Validate that a datetime is timezone-aware.
+        
+        Args:
+            dt: The datetime to validate
+            param_name: Name of the parameter for error messages
+            
+        Raises:
+            ValueError: If datetime is not None and is naive (timezone-naive)
+        """
+        if dt is not None and dt.tzinfo is None:
+            raise ValueError(f"{param_name} must be timezone-aware")
     
     @staticmethod
     def should_start_misting(
@@ -59,9 +72,7 @@ class MistingDecisionEngine:
         
         # Check cooldown period
         if last_mister_start:
-            # Ensure last_mister_start is timezone-aware
-            if last_mister_start.tzinfo is None:
-                raise ValueError("last_mister_start must be timezone-aware")
+            MistingDecisionEngine._validate_timezone_aware(last_mister_start, "last_mister_start")
             now = datetime.now(ZoneInfo("localtime"))
             time_since = (now - last_mister_start).total_seconds()
             if time_since < config.cooldown_seconds:
@@ -107,9 +118,7 @@ class MistingDecisionEngine:
         
         # Check max duration
         if last_mister_start:
-            # Ensure last_mister_start is timezone-aware
-            if last_mister_start.tzinfo is None:
-                raise ValueError("last_mister_start must be timezone-aware")
+            MistingDecisionEngine._validate_timezone_aware(last_mister_start, "last_mister_start")
             now = datetime.now(ZoneInfo("localtime"))
             time_running = (now - last_mister_start).total_seconds()
             max_duration = time_running >= config.mister_duration_seconds
