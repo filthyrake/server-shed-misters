@@ -89,6 +89,32 @@ CHECK_INTERVAL=60     # seconds (1 minute)
 COOLDOWN_SECONDS=300  # seconds (5 minutes)
 ```
 
+### Configuration Safety Features
+
+The system includes **automatic validation and bounds checking** to protect hardware from dangerous configurations:
+
+**Invalid Values:** Non-numeric values are rejected and the default is used instead.
+```bash
+TEMP_HIGH=not_a_number  # ⚠️ Uses default: 95°F
+```
+
+**Extreme Values:** Values outside safe bounds are automatically clamped:
+```bash
+TEMP_HIGH=999           # ⚠️ Clamped to maximum: 130°F
+MISTER_DURATION=86400   # ⚠️ Clamped to maximum: 7200s (2 hours)
+COOLDOWN_SECONDS=0      # ⚠️ Clamped to minimum: 60s (1 minute)
+CHECK_INTERVAL=1        # ⚠️ Clamped to minimum: 10s
+```
+
+**Configuration Bounds:**
+- Temperature: 32°F - 130°F (prevents damage from extreme settings)
+- Humidity: 0% - 100% (valid percentage range)
+- Mister Duration: 60s - 7200s (1 minute to 2 hours)
+- Check Interval: 10s - 3600s (prevents API spam)
+- Cooldown: 60s - 86400s (prevents valve cycling)
+
+All validation issues are logged at startup, and critical errors prevent the system from running.
+
 ## API Credentials Setup
 
 ### SwitchBot API
