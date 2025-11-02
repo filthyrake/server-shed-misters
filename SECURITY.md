@@ -120,6 +120,48 @@ def start(self):
 
 This prevents the scenario where multiple start requests could spawn multiple controller threads.
 
+### 6. Environment Variable Validation
+
+All environment variables are validated and bounds-checked at startup to prevent:
+- Application crashes from invalid configuration
+- Hardware damage from extreme values
+- API spam from inappropriate timing settings
+
+**Implementation:**
+
+Environment variables are parsed using safe helper functions (`safe_get_env_float` and `safe_get_env_int` from `env_utils.py`) that:
+
+1. **Validate Format**: Non-numeric values are rejected and defaults are used
+   ```python
+   TEMP_HIGH=not_a_number  # ⚠️ Logs error, uses default 95°F
+   ```
+
+2. **Enforce Bounds**: Values outside safe ranges are automatically clamped
+   ```python
+   TEMP_HIGH=999           # ⚠️ Clamped to max 130°F
+   MISTER_DURATION=86400   # ⚠️ Clamped to max 7200s (2 hours)
+   COOLDOWN_SECONDS=0      # ⚠️ Clamped to min 60s
+   CHECK_INTERVAL=1        # ⚠️ Clamped to min 10s
+   ```
+
+**Configuration Bounds:**
+
+| Parameter | Minimum | Maximum | Reason |
+|-----------|---------|---------|--------|
+| Temperature | 32°F | 130°F | Prevent damage from extreme settings |
+| Humidity | 0% | 100% | Valid percentage range |
+| Mister Duration | 60s | 7200s | 1 minute to 2 hours (prevent over-watering) |
+| Check Interval | 10s | 3600s | Prevent API spam |
+| Cooldown | 60s | 86400s | Prevent rapid valve cycling |
+
+**Protection Against:**
+- **Hardware Damage**: Extreme mister duration values could flood equipment
+- **Valve Cycling**: Zero or very low cooldown could damage physical valves
+- **API Quota Exhaustion**: Very short check intervals could exhaust API quotas
+- **Application Crashes**: Invalid input that would cause type conversion errors
+
+All validation issues are logged at ERROR or WARNING level, making configuration problems easy to identify.
+
 ## Security Best Practices
 
 ### Credential Management
@@ -301,7 +343,13 @@ These security features are designed to be transparent during normal operation:
 
 ## Changelog
 
-### Version 1.1.0 (Current)
+### Version 1.2.0 (Current)
+- Added environment variable validation with bounds checking
+- Added safe parsing functions to prevent application crashes from invalid input
+- Added automatic clamping of extreme values to safe ranges
+- Improved startup robustness with comprehensive error handling
+
+### Version 1.1.0
 - Added rate limiting (5 requests/minute per endpoint)
 - Added state validation for all control operations
 - Added hardware safety delays (30-second minimum between valve operations)

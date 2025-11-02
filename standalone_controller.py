@@ -11,6 +11,7 @@ from decision_engine import MistingDecisionEngine
 from config_validator import ConfigValidator
 from state_manager import StateManager
 from secrets_loader import APICredentials
+from env_utils import safe_get_env_float, safe_get_env_int
 import logging
 
 logging.basicConfig(
@@ -38,13 +39,13 @@ class FinalMisterController:
         
         # Configuration
         self.config = MisterConfig(
-            temperature_threshold_high=float(os.environ.get("TEMP_HIGH", 95)),
-            temperature_threshold_low=float(os.environ.get("TEMP_LOW", 95)),
-            humidity_threshold_low=float(os.environ.get("HUMIDITY_LOW", 35)),
-            humidity_threshold_high=float(os.environ.get("HUMIDITY_HIGH", 35)),
-            mister_duration_seconds=int(os.environ.get("MISTER_DURATION", 600)),
-            check_interval_seconds=int(os.environ.get("CHECK_INTERVAL", 60)),
-            cooldown_seconds=int(os.environ.get("COOLDOWN_SECONDS", 300))
+            temperature_threshold_high=safe_get_env_float("TEMP_HIGH", 95.0, min_val=ConfigValidator.MIN_TEMP, max_val=ConfigValidator.MAX_TEMP),
+            temperature_threshold_low=safe_get_env_float("TEMP_LOW", 95.0, min_val=ConfigValidator.MIN_TEMP, max_val=ConfigValidator.MAX_TEMP),
+            humidity_threshold_low=safe_get_env_float("HUMIDITY_LOW", 35.0, min_val=ConfigValidator.MIN_HUMIDITY, max_val=ConfigValidator.MAX_HUMIDITY),
+            humidity_threshold_high=safe_get_env_float("HUMIDITY_HIGH", 35.0, min_val=ConfigValidator.MIN_HUMIDITY, max_val=ConfigValidator.MAX_HUMIDITY),
+            mister_duration_seconds=safe_get_env_int("MISTER_DURATION", 600, min_val=ConfigValidator.MIN_MISTER_DURATION, max_val=ConfigValidator.MAX_MISTER_DURATION),
+            check_interval_seconds=safe_get_env_int("CHECK_INTERVAL", 60, min_val=ConfigValidator.MIN_CHECK_INTERVAL, max_val=ConfigValidator.MAX_CHECK_INTERVAL),
+            cooldown_seconds=safe_get_env_int("COOLDOWN_SECONDS", 300, min_val=ConfigValidator.MIN_COOLDOWN, max_val=ConfigValidator.MAX_COOLDOWN)
         )
         
         # Validate configuration
