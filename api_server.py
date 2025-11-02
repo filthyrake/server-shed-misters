@@ -3,7 +3,7 @@
 import os
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Tuple
 from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Request
@@ -626,6 +626,14 @@ async def get_status() -> StatusResponse:
         last_reading_time = state.last_reading_time
         last_mister_start = state.last_mister_start
     
+    # Calculate next check time
+    next_check = None
+    if is_running and not is_paused and last_reading_time:
+        next_check_datetime = last_reading_time + timedelta(
+            seconds=state.config.check_interval_seconds
+        )
+        next_check = next_check_datetime.isoformat()
+    
     return StatusResponse(
         is_running=is_running,
         is_paused=is_paused,
@@ -634,6 +642,7 @@ async def get_status() -> StatusResponse:
         current_humidity=last_reading.humidity if last_reading else None,
         last_reading_time=last_reading_time.isoformat() if last_reading_time else None,
         last_mister_start=last_mister_start.isoformat() if last_mister_start else None,
+        next_check_time=next_check,
         uptime_seconds=int(uptime),
         config={
             "temperature_threshold_high": state.config.temperature_threshold_high,
