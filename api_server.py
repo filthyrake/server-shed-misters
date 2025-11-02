@@ -146,8 +146,9 @@ class MisterControllerState:
     
     def should_start_misting(self, reading: SensorReading) -> bool:
         """
-        Thread-safe wrapper for decision engine.
-        MUST be called from within _state_lock to ensure consistent state reads.
+        Wrapper for decision engine that reads current state.
+        MUST be called from within _state_lock because it accesses
+        self.is_misting, self.is_paused, and self.last_mister_start.
         """
         return MistingDecisionEngine.should_start_misting(
             reading=reading,
@@ -159,8 +160,9 @@ class MisterControllerState:
     
     def should_stop_misting(self, reading: SensorReading) -> bool:
         """
-        Thread-safe wrapper for decision engine.
-        MUST be called from within _state_lock to ensure consistent state reads.
+        Wrapper for decision engine that reads current state.
+        MUST be called from within _state_lock because it accesses
+        self.is_misting and self.last_mister_start.
         """
         return MistingDecisionEngine.should_stop_misting(
             reading=reading,
