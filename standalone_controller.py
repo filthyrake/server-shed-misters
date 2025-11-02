@@ -13,6 +13,7 @@ from state_manager import StateManager
 from secrets_loader import APICredentials
 from env_utils import safe_get_env_float, safe_get_env_int
 import logging
+import requests
 
 logging.basicConfig(
     level=logging.INFO,
@@ -135,6 +136,9 @@ class FinalMisterController:
         logger.info("🌡️ Starting monitoring loop... (Press Ctrl+C to stop)")
         logger.info("=" * 60)
         
+        consecutive_errors = 0
+        MAX_CONSECUTIVE_ERRORS = 5
+        
         while True:
             try:
                 # Get sensor reading (done outside lock - API call)
@@ -221,6 +225,7 @@ class FinalMisterController:
                     logger.warning("⚠️ Failed to read sensor data")
                 
                 time.sleep(self.config.check_interval_seconds)
+                consecutive_errors = 0  # Reset on success
                 
             except KeyboardInterrupt:
                 logger.info("\n🛑 Shutting down...")
@@ -234,9 +239,64 @@ class FinalMisterController:
                     self.rachio.stop_watering(self.valve_id)
                 self.state_manager.graceful_shutdown()
                 break
+                
+            except requests.RequestException as e:
+                consecutive_errors += 1
+                logger.error(f"API error ({consecutive_errors}/{MAX_CONSECUTIVE_ERRORS}): {e}")
+                
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                    logger.critical("Too many consecutive errors, entering safe mode")
+                    
+                    # Thread-safe check and emergency stop if misting
+                    with self._state_lock:
+                        is_misting = self.is_misting
+                    
+                    if is_misting:
+                        logger.warning("Emergency stop: shutting off valve")
+                        try:
+                            self.rachio.stop_watering(self.valve_id)
+                            with self._state_lock:
+                                self.is_misting = False
+                            logger.info("Emergency valve stop successful")
+                        except Exception as stop_error:
+                            logger.critical(f"FAILED TO STOP VALVE IN EMERGENCY: {stop_error}")
+                    
+                    # Longer backoff in safe mode (5 minutes)
+                    logger.info("Safe mode: waiting 300 seconds before retry")
+                    time.sleep(300)
+                    consecutive_errors = 0  # Reset after safe mode wait
+                else:
+                    # Normal backoff
+                    time.sleep(self.config.check_interval_seconds)
+                    
             except Exception as e:
-                logger.error(f"❌ Unexpected error: {e}")
-                time.sleep(self.config.check_interval_seconds)
+                consecutive_errors += 1
+                logger.critical(f"Unexpected error in controller loop ({consecutive_errors}/{MAX_CONSECUTIVE_ERRORS}): {e}", exc_info=True)
+                
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                    logger.critical("Too many consecutive errors, entering safe mode")
+                    
+                    # Thread-safe check and emergency stop if misting
+                    with self._state_lock:
+                        is_misting = self.is_misting
+                    
+                    if is_misting:
+                        logger.warning("Emergency stop: shutting off valve")
+                        try:
+                            self.rachio.stop_watering(self.valve_id)
+                            with self._state_lock:
+                                self.is_misting = False
+                            logger.info("Emergency valve stop successful")
+                        except Exception as stop_error:
+                            logger.critical(f"FAILED TO STOP VALVE IN EMERGENCY: {stop_error}")
+                    
+                    # Longer backoff in safe mode (5 minutes)
+                    logger.info("Safe mode: waiting 300 seconds before retry")
+                    time.sleep(300)
+                    consecutive_errors = 0  # Reset after safe mode wait
+                else:
+                    # Normal backoff
+                    time.sleep(self.config.check_interval_seconds)
 
 def main():
     try:
