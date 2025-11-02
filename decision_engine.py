@@ -23,25 +23,7 @@ class MistingDecisionEngine:
     timing constraints.
     """
     
-    @staticmethod
-    def _get_compatible_now(reference_datetime: Optional[datetime]) -> datetime:
-        """
-        Get current datetime compatible with the reference datetime's timezone awareness.
-        
-        If reference_datetime is timezone-aware, returns timezone-aware now().
-        If reference_datetime is naive, returns naive now().
-        If reference_datetime is None, returns naive now().
-        
-        Args:
-            reference_datetime: Optional reference datetime to match timezone awareness
-            
-        Returns:
-            Current datetime with matching timezone awareness
-        """
-        if reference_datetime is not None and reference_datetime.tzinfo is not None:
-            return datetime.now(ZoneInfo("localtime"))
-        else:
-            return datetime.now()
+
     
     @staticmethod
     def should_start_misting(
@@ -77,7 +59,10 @@ class MistingDecisionEngine:
         
         # Check cooldown period
         if last_mister_start:
-            now = MistingDecisionEngine._get_compatible_now(last_mister_start)
+            # Ensure last_mister_start is timezone-aware
+            if last_mister_start.tzinfo is None:
+                raise ValueError("last_mister_start must be timezone-aware")
+            now = datetime.now(ZoneInfo("localtime"))
             time_since = (now - last_mister_start).total_seconds()
             if time_since < config.cooldown_seconds:
                 return False
@@ -122,7 +107,10 @@ class MistingDecisionEngine:
         
         # Check max duration
         if last_mister_start:
-            now = MistingDecisionEngine._get_compatible_now(last_mister_start)
+            # Ensure last_mister_start is timezone-aware
+            if last_mister_start.tzinfo is None:
+                raise ValueError("last_mister_start must be timezone-aware")
+            now = datetime.now(ZoneInfo("localtime"))
             time_running = (now - last_mister_start).total_seconds()
             max_duration = time_running >= config.mister_duration_seconds
             

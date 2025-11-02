@@ -98,18 +98,19 @@ class StateManager:
         self.update_state(last_mister_start=start_time.isoformat())
     
     def get_last_mister_start(self) -> datetime:
-        """Get the last mister start time"""
+        """Get the last mister start time, always timezone-aware"""
         last_start = self.state.get("last_mister_start")
         if last_start:
             try:
                 dt = datetime.fromisoformat(last_start)
-                # If the datetime is naive (no timezone), assume it was stored in UTC (old behavior)
-                # and convert it to local time
+                # Always return timezone-aware datetime in local time
                 if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc).astimezone(ZoneInfo("localtime"))
-                return dt
-            except:
-                pass
+                    # Assume old naive datetimes were in local time
+                    logger.warning("Converting legacy naive datetime to timezone-aware")
+                    dt = dt.replace(tzinfo=ZoneInfo("localtime"))
+                return dt.astimezone(ZoneInfo("localtime"))
+            except Exception as e:
+                logger.error(f"Failed to parse last_mister_start: {e}")
         return None
     
     def record_runtime(self, additional_seconds: int):
