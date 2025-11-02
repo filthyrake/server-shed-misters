@@ -108,8 +108,7 @@ class StateManager:
                     # Assume old naive datetimes were in local time (matching historical datetime.now() behavior)
                     logger.warning(f"Converting legacy naive datetime to timezone-aware: {last_start}")
                     dt = dt.replace(tzinfo=ZoneInfo("localtime"))
-                    return dt
-                # Convert to local time if in a different timezone
+                # Convert to local time if in a different timezone (or just ensure localtime)
                 return dt.astimezone(ZoneInfo("localtime"))
             except Exception as e:
                 logger.error(f"Failed to parse last_mister_start: {e}")
