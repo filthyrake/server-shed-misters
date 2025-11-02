@@ -248,14 +248,35 @@ class MisterControllerState:
                     
                     if is_misting:
                         logger.warning("Emergency stop: shutting off valve")
+                        valve_stopped = False
                         try:
-                            self.rachio.stop_watering(self.valve_id)
-                            with self._state_lock:
-                                self.is_misting = False
-                                self._record_valve_action()
-                            logger.info("Emergency valve stop successful")
+                            if self.rachio.stop_watering(self.valve_id):
+                                with self._state_lock:
+                                    self.is_misting = False
+                                    self._record_valve_action()
+                                logger.info("Emergency valve stop successful")
+                                valve_stopped = True
+                            else:
+                                raise Exception("stop_watering returned False")
                         except Exception as stop_error:
                             logger.critical(f"FAILED TO STOP VALVE IN EMERGENCY: {stop_error}")
+                            # Immediate retry with exponential backoff
+                            for retry in range(3):
+                                logger.warning(f"Emergency stop retry attempt {retry + 1}/3")
+                                self.stop_event.wait(2 ** retry)  # 1s, 2s, 4s
+                                try:
+                                    if self.rachio.stop_watering(self.valve_id):
+                                        with self._state_lock:
+                                            self.is_misting = False
+                                            self._record_valve_action()
+                                        logger.info(f"Emergency valve stop successful on retry {retry + 1}")
+                                        valve_stopped = True
+                                        break
+                                except Exception as retry_error:
+                                    logger.critical(f"Retry {retry + 1} failed: {retry_error}")
+                            
+                            if not valve_stopped:
+                                logger.critical("ALL EMERGENCY STOP RETRIES FAILED - MANUAL INTERVENTION REQUIRED")
                     
                     # Longer backoff in safe mode (5 minutes)
                     logger.info("Safe mode: waiting 300 seconds before retry")
@@ -278,14 +299,35 @@ class MisterControllerState:
                     
                     if is_misting:
                         logger.warning("Emergency stop: shutting off valve")
+                        valve_stopped = False
                         try:
-                            self.rachio.stop_watering(self.valve_id)
-                            with self._state_lock:
-                                self.is_misting = False
-                                self._record_valve_action()
-                            logger.info("Emergency valve stop successful")
+                            if self.rachio.stop_watering(self.valve_id):
+                                with self._state_lock:
+                                    self.is_misting = False
+                                    self._record_valve_action()
+                                logger.info("Emergency valve stop successful")
+                                valve_stopped = True
+                            else:
+                                raise Exception("stop_watering returned False")
                         except Exception as stop_error:
                             logger.critical(f"FAILED TO STOP VALVE IN EMERGENCY: {stop_error}")
+                            # Immediate retry with exponential backoff
+                            for retry in range(3):
+                                logger.warning(f"Emergency stop retry attempt {retry + 1}/3")
+                                self.stop_event.wait(2 ** retry)  # 1s, 2s, 4s
+                                try:
+                                    if self.rachio.stop_watering(self.valve_id):
+                                        with self._state_lock:
+                                            self.is_misting = False
+                                            self._record_valve_action()
+                                        logger.info(f"Emergency valve stop successful on retry {retry + 1}")
+                                        valve_stopped = True
+                                        break
+                                except Exception as retry_error:
+                                    logger.critical(f"Retry {retry + 1} failed: {retry_error}")
+                            
+                            if not valve_stopped:
+                                logger.critical("ALL EMERGENCY STOP RETRIES FAILED - MANUAL INTERVENTION REQUIRED")
                     
                     # Longer backoff in safe mode (5 minutes)
                     logger.info("Safe mode: waiting 300 seconds before retry")
