@@ -632,8 +632,12 @@ async def get_status() -> StatusResponse:
         next_check_datetime = last_reading_time + timedelta(
             seconds=state.config.check_interval_seconds
         )
-        next_check = next_check_datetime.isoformat()
-    
+        now = datetime.now(last_reading_time.tzinfo) if last_reading_time.tzinfo else datetime.now()
+        if next_check_datetime <= now:
+            # Next check is overdue; indicate immediate check is pending
+            next_check = now.isoformat()
+        else:
+            next_check = next_check_datetime.isoformat()
     return StatusResponse(
         is_running=is_running,
         is_paused=is_paused,
