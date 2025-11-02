@@ -166,11 +166,10 @@ class FinalMisterController:
                             reason.append("temp cooled")
                         if reading.humidity > self.config.humidity_threshold_high:
                             reason.append("humidity increased")
-                        # Check max duration with minimal lock time
-                        current_time = datetime.now(ZoneInfo("localtime"))
+                        # Check max duration - capture time inside lock for consistency
                         with self._state_lock:
                             if self.last_mister_start:
-                                runtime = (current_time - self.last_mister_start).total_seconds()
+                                runtime = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
                                 if runtime >= self.config.mister_duration_seconds:
                                     reason.append("max duration")
                         
