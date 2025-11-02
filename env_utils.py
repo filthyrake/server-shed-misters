@@ -43,6 +43,9 @@ def safe_get_env_float(
         logger.debug(f"{key} not set, using default: {default}")
         return default
     
+    # Strip whitespace to handle common input errors
+    raw_value = raw_value.strip()
+    
     # Try to parse as float
     try:
         value = float(raw_value)
@@ -100,6 +103,9 @@ def safe_get_env_int(
     if raw_value is None:
         logger.debug(f"{key} not set, using default: {default}")
         return default
+    
+    # Strip whitespace to handle common input errors
+    raw_value = raw_value.strip()
     
     # Try to parse as int
     try:
