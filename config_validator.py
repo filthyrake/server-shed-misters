@@ -51,6 +51,9 @@ class ConfigValidator:
     MIN_COOLDOWN = 60  # 1 minute minimum
     MAX_COOLDOWN = 86400  # 24 hours maximum
     
+    # Device ID validation
+    MIN_DEVICE_ID_LENGTH = 10  # Minimum length for device IDs (SwitchBot and Rachio)
+    
     @staticmethod
     def validate_config(config: MisterConfig) -> List[ValidationIssue]:
         """
