@@ -7,11 +7,14 @@ This module provides a centralized decision engine that both api_server.py and
 standalone_controller.py use to maintain consistent misting logic.
 """
 
+import logging
 from datetime import datetime
 from typing import Optional
 from zoneinfo import ZoneInfo
 
 from mister_controller import SensorReading, MisterConfig
+
+logger = logging.getLogger(__name__)
 
 
 class MistingDecisionEngine:
@@ -24,24 +27,21 @@ class MistingDecisionEngine:
     """
     
     @staticmethod
-    def _get_compatible_now(reference_datetime: Optional[datetime]) -> datetime:
+    def _validate_timezone_aware(dt: Optional[datetime], param_name: str = "datetime") -> bool:
         """
-        Get current datetime compatible with the reference datetime's timezone awareness.
-        
-        If reference_datetime is timezone-aware, returns timezone-aware now().
-        If reference_datetime is naive, returns naive now().
-        If reference_datetime is None, returns naive now().
+        Validate that a datetime is timezone-aware.
         
         Args:
-            reference_datetime: Optional reference datetime to match timezone awareness
+            dt: The datetime to validate
+            param_name: Name of the parameter for error messages
             
         Returns:
-            Current datetime with matching timezone awareness
+            True if datetime is valid (None or timezone-aware), False if invalid (naive)
         """
-        if reference_datetime is not None and reference_datetime.tzinfo is not None:
-            return datetime.now(ZoneInfo("localtime"))
-        else:
-            return datetime.now()
+        if dt is not None and dt.tzinfo is None:
+            logger.error(f"{param_name} must be timezone-aware but received naive datetime: {dt}")
+            return False
+        return True
     
     @staticmethod
     def should_start_misting(
@@ -77,7 +77,11 @@ class MistingDecisionEngine:
         
         # Check cooldown period
         if last_mister_start:
-            now = MistingDecisionEngine._get_compatible_now(last_mister_start)
+            # Validate timezone awareness - if invalid, skip cooldown check (fail safe: don't start)
+            if not MistingDecisionEngine._validate_timezone_aware(last_mister_start, "last_mister_start"):
+                logger.warning("Skipping cooldown check due to invalid datetime - blocking misting start as safety precaution")
+                return False
+            now = datetime.now(ZoneInfo("localtime"))
             time_since = (now - last_mister_start).total_seconds()
             if time_since < config.cooldown_seconds:
                 return False
@@ -122,7 +126,11 @@ class MistingDecisionEngine:
         
         # Check max duration
         if last_mister_start:
-            now = MistingDecisionEngine._get_compatible_now(last_mister_start)
+            # Validate timezone awareness - if invalid, skip duration check (fail safe: stop immediately)
+            if not MistingDecisionEngine._validate_timezone_aware(last_mister_start, "last_mister_start"):
+                logger.warning("Skipping duration check due to invalid datetime - stopping misting as safety precaution")
+                return True  # Stop misting if we can't validate the time
+            now = datetime.now(ZoneInfo("localtime"))
             time_running = (now - last_mister_start).total_seconds()
             max_duration = time_running >= config.mister_duration_seconds
             

@@ -738,7 +738,7 @@ async def get_status() -> StatusResponse:
         next_check_datetime = last_reading_time + timedelta(
             seconds=state.config.check_interval_seconds
         )
-        now = datetime.now(last_reading_time.tzinfo) if last_reading_time.tzinfo else datetime.now()
+        now = datetime.now(ZoneInfo("localtime"))
         if next_check_datetime <= now:
             # Next check is overdue; indicate immediate check is pending
             next_check = now.isoformat()
