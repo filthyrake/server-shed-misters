@@ -132,7 +132,8 @@ class FinalMisterController:
         """
         Attempt to stop the valve with retry logic for hardware safety.
         Returns True if successful, False if all retries failed.
-        Note: Does not update last_mister_start - cooldown is calculated from start time.
+        Note: Only updates is_misting state; last_mister_start is intentionally not updated here,
+        as cooldown is calculated from the original start time. This is correct and safe behavior.
         """
         MAX_RETRY_ATTEMPTS = 3
         valve_stopped = False
