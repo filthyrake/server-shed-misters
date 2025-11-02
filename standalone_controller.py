@@ -132,6 +132,7 @@ class FinalMisterController:
         """
         Attempt to stop the valve with retry logic for hardware safety.
         Returns True if successful, False if all retries failed.
+        Note: Does not update last_mister_start - cooldown is calculated from start time.
         """
         MAX_RETRY_ATTEMPTS = 3
         valve_stopped = False
@@ -140,26 +141,20 @@ class FinalMisterController:
             if self.rachio.stop_watering(self.valve_id):
                 with self._state_lock:
                     self.is_misting = False
-                    # Update state to ensure cooldown is enforced after emergency stop
-                    self.last_mister_start = datetime.now(ZoneInfo("localtime"))
-                    self.state_manager.record_mister_start(self.last_mister_start)
                 logger.info("Emergency valve stop successful")
                 valve_stopped = True
             else:
                 raise Exception("stop_watering returned False")
         except Exception as stop_error:
             logger.critical(f"FAILED TO STOP VALVE IN EMERGENCY: {stop_error}")
-            # Immediate retry with exponential backoff
+            # Retry with exponential backoff: 1s, 2s, 4s
             for retry in range(MAX_RETRY_ATTEMPTS):
                 logger.warning(f"Emergency stop retry attempt {retry + 1}/{MAX_RETRY_ATTEMPTS}")
-                time.sleep(2 ** retry)  # 1s, 2s, 4s
+                time.sleep(2 ** retry)  # 2^0=1s, 2^1=2s, 2^2=4s
                 try:
                     if self.rachio.stop_watering(self.valve_id):
                         with self._state_lock:
                             self.is_misting = False
-                            # Update state to ensure cooldown is enforced after emergency stop
-                            self.last_mister_start = datetime.now(ZoneInfo("localtime"))
-                            self.state_manager.record_mister_start(self.last_mister_start)
                         logger.info(f"Emergency valve stop successful on retry {retry + 1}")
                         valve_stopped = True
                         break
@@ -170,6 +165,24 @@ class FinalMisterController:
                 logger.critical("ALL EMERGENCY STOP RETRIES FAILED - MANUAL INTERVENTION REQUIRED")
         
         return valve_stopped
+    
+    def _enter_safe_mode(self, safe_mode_wait_seconds: int):
+        """
+        Enter safe mode: stop valve if misting and wait before retrying.
+        """
+        logger.critical("Too many consecutive errors, entering safe mode")
+        
+        # Thread-safe check and emergency stop if misting
+        with self._state_lock:
+            is_misting = self.is_misting
+        
+        if is_misting:
+            logger.warning("Emergency stop: shutting off valve")
+            self._emergency_stop_with_retries()
+        
+        # Longer backoff in safe mode (5 minutes)
+        logger.info(f"Safe mode: waiting {safe_mode_wait_seconds} seconds before retry")
+        time.sleep(safe_mode_wait_seconds)
     
     def run(self):
         if not self.setup():
@@ -289,19 +302,7 @@ class FinalMisterController:
                 logger.error(f"API error ({consecutive_errors}/{MAX_CONSECUTIVE_ERRORS}): {e}")
                 
                 if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
-                    logger.critical("Too many consecutive errors, entering safe mode")
-                    
-                    # Thread-safe check and emergency stop if misting
-                    with self._state_lock:
-                        is_misting = self.is_misting
-                    
-                    if is_misting:
-                        logger.warning("Emergency stop: shutting off valve")
-                        self._emergency_stop_with_retries()
-                    
-                    # Longer backoff in safe mode (5 minutes)
-                    logger.info(f"Safe mode: waiting {SAFE_MODE_WAIT_SECONDS} seconds before retry")
-                    time.sleep(SAFE_MODE_WAIT_SECONDS)
+                    self._enter_safe_mode(SAFE_MODE_WAIT_SECONDS)
                     consecutive_errors = 0  # Reset after safe mode wait
                 else:
                     # Normal backoff
@@ -312,19 +313,7 @@ class FinalMisterController:
                 logger.critical(f"Unexpected error in controller loop ({consecutive_errors}/{MAX_CONSECUTIVE_ERRORS}): {e}", exc_info=True)
                 
                 if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
-                    logger.critical("Too many consecutive errors, entering safe mode")
-                    
-                    # Thread-safe check and emergency stop if misting
-                    with self._state_lock:
-                        is_misting = self.is_misting
-                    
-                    if is_misting:
-                        logger.warning("Emergency stop: shutting off valve")
-                        self._emergency_stop_with_retries()
-                    
-                    # Longer backoff in safe mode (5 minutes)
-                    logger.info(f"Safe mode: waiting {SAFE_MODE_WAIT_SECONDS} seconds before retry")
-                    time.sleep(SAFE_MODE_WAIT_SECONDS)
+                    self._enter_safe_mode(SAFE_MODE_WAIT_SECONDS)
                     consecutive_errors = 0  # Reset after safe mode wait
                 else:
                     # Normal backoff
