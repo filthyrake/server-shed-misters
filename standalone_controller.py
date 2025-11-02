@@ -298,17 +298,6 @@ class FinalMisterController:
                 self.state_manager.graceful_shutdown()
                 break
                 
-            except requests.RequestException as e:
-                consecutive_errors += 1
-                logger.error(f"API error ({consecutive_errors}/{MAX_CONSECUTIVE_ERRORS}): {e}")
-                
-                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
-                    self._enter_safe_mode(SAFE_MODE_WAIT_SECONDS)
-                    consecutive_errors = 0  # Reset after safe mode wait
-                else:
-                    # Normal backoff
-                    time.sleep(self.config.check_interval_seconds)
-                    
             except Exception as e:
                 consecutive_errors += 1
                 logger.critical(f"Unexpected error in controller loop ({consecutive_errors}/{MAX_CONSECUTIVE_ERRORS}): {e}", exc_info=True)
