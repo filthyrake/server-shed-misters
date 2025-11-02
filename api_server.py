@@ -145,6 +145,11 @@ class MisterControllerState:
         self._last_valve_action_time = time.time()
     
     def should_start_misting(self, reading: SensorReading) -> bool:
+        """
+        Wrapper for decision engine that reads current state.
+        MUST be called from within _state_lock because it accesses
+        self.is_misting, self.is_paused, and self.last_mister_start.
+        """
         return MistingDecisionEngine.should_start_misting(
             reading=reading,
             config=self.config,
@@ -154,6 +159,11 @@ class MisterControllerState:
         )
     
     def should_stop_misting(self, reading: SensorReading) -> bool:
+        """
+        Wrapper for decision engine that reads current state.
+        MUST be called from within _state_lock because it accesses
+        self.is_misting and self.last_mister_start.
+        """
         return MistingDecisionEngine.should_stop_misting(
             reading=reading,
             config=self.config,
@@ -167,27 +177,40 @@ class MisterControllerState:
         
         while not self.stop_event.is_set():
             try:
-                if not self.is_paused:
-                    # Get sensor reading
+                # Check if paused (thread-safe read)
+                with self._state_lock:
+                    is_paused = self.is_paused
+                
+                if not is_paused:
+                    # Get sensor reading (done outside lock - API call)
                     reading = self.switchbot.get_hub2_data(self.hub2_device_id)
                     
                     if reading:
-                        self.last_reading = reading
-                        self.last_reading_time = datetime.now(ZoneInfo("localtime"))
+                        # Update sensor reading state (thread-safe)
+                        with self._state_lock:
+                            self.last_reading = reading
+                            self.last_reading_time = datetime.now(ZoneInfo("localtime"))
+                            
+                            # Make decision based on current state
+                            should_start = self.should_start_misting(reading)
+                            should_stop = self.should_stop_misting(reading)
                         
-                        if self.should_start_misting(reading):
+                        # Execute valve actions outside lock to avoid holding lock during API calls
+                        if should_start:
                             logger.warning(f"Starting mister - Temp: {reading.temperature:.1f}°F, Humidity: {reading.humidity}%")
                             
                             if self.rachio.start_watering(self.valve_id, self.config.mister_duration_seconds):
-                                self.is_misting = True
-                                self.last_mister_start = datetime.now(ZoneInfo("localtime"))
-                                self.state_manager.record_mister_start(self.last_mister_start)
-                                self._record_valve_action()
+                                # Update state after successful valve action
+                                with self._state_lock:
+                                    self.is_misting = True
+                                    self.last_mister_start = datetime.now(ZoneInfo("localtime"))
+                                    self.state_manager.record_mister_start(self.last_mister_start)
+                                    self._record_valve_action()
                                 logger.info("Mister started successfully")
                             else:
                                 logger.error("Failed to start mister")
                         
-                        elif self.should_stop_misting(reading):
+                        elif should_stop:
                             logger.info(f"Stopping mister - Temp: {reading.temperature:.1f}°F, Humidity: {reading.humidity}%")
                             
                             # Check hardware safety before stopping valve
@@ -195,8 +218,10 @@ class MisterControllerState:
                             if not safe:
                                 logger.warning(f"Valve stop action skipped due to safety check: {safety_message}")
                             elif self.rachio.stop_watering(self.valve_id):
-                                self.is_misting = False
-                                self._record_valve_action()
+                                # Update state after successful valve action
+                                with self._state_lock:
+                                    self.is_misting = False
+                                    self._record_valve_action()
                                 logger.info("Mister stopped successfully")
                             else:
                                 logger.error("Failed to stop mister")
@@ -591,14 +616,23 @@ async def get_status() -> StatusResponse:
     """Get current system status"""
     uptime = (datetime.now(ZoneInfo("localtime")) - state.start_time).total_seconds()
     
+    # Thread-safe read of all state variables
+    with state._state_lock:
+        is_running = state.is_running
+        is_paused = state.is_paused
+        is_misting = state.is_misting
+        last_reading = state.last_reading
+        last_reading_time = state.last_reading_time
+        last_mister_start = state.last_mister_start
+    
     return StatusResponse(
-        is_running=state.is_running,
-        is_paused=state.is_paused,
-        is_misting=state.is_misting,
-        current_temp=state.last_reading.temperature if state.last_reading else None,
-        current_humidity=state.last_reading.humidity if state.last_reading else None,
-        last_reading_time=state.last_reading_time.isoformat() if state.last_reading_time else None,
-        last_mister_start=state.last_mister_start.isoformat() if state.last_mister_start else None,
+        is_running=is_running,
+        is_paused=is_paused,
+        is_misting=is_misting,
+        current_temp=last_reading.temperature if last_reading else None,
+        current_humidity=last_reading.humidity if last_reading else None,
+        last_reading_time=last_reading_time.isoformat() if last_reading_time else None,
+        last_mister_start=last_mister_start.isoformat() if last_mister_start else None,
         uptime_seconds=int(uptime),
         config={
             "temperature_threshold_high": state.config.temperature_threshold_high,

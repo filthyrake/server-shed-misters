@@ -2,6 +2,7 @@
 
 import os
 import time
+import threading
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
@@ -56,6 +57,9 @@ class FinalMisterController:
         # Initialize state manager for persistence
         self.state_manager = StateManager()
         
+        # Thread safety lock for state changes
+        self._state_lock = threading.Lock()
+        
         # State tracking - load from persistent state
         self.last_mister_start = self.state_manager.get_last_mister_start()
         self.is_misting = False
@@ -96,6 +100,11 @@ class FinalMisterController:
         return True
     
     def should_start_misting(self, reading: SensorReading) -> bool:
+        """
+        Wrapper for decision engine that reads current state.
+        MUST be called from within _state_lock because it accesses
+        self.is_misting and self.last_mister_start.
+        """
         return MistingDecisionEngine.should_start_misting(
             reading=reading,
             config=self.config,
@@ -105,6 +114,11 @@ class FinalMisterController:
         )
     
     def should_stop_misting(self, reading: SensorReading) -> bool:
+        """
+        Wrapper for decision engine that reads current state.
+        MUST be called from within _state_lock because it accesses
+        self.is_misting and self.last_mister_start.
+        """
         return MistingDecisionEngine.should_stop_misting(
             reading=reading,
             config=self.config,
@@ -122,46 +136,64 @@ class FinalMisterController:
         
         while True:
             try:
+                # Get sensor reading (done outside lock - API call)
                 reading = self.switchbot.get_hub2_data(self.hub2_device_id)
                 
                 if reading:
-                    if self.should_start_misting(reading):
+                    # Make decision based on current state (thread-safe)
+                    with self._state_lock:
+                        should_start = self.should_start_misting(reading)
+                        should_stop = self.should_stop_misting(reading)
+                    
+                    # Execute valve actions outside lock to avoid holding lock during API calls
+                    if should_start:
                         logger.warning(f"🔥💦 STARTING MISTER - Temp: {reading.temperature:.1f}°F, Humidity: {reading.humidity}%")
                         
                         if self.rachio.start_watering(self.valve_id, self.config.mister_duration_seconds):
-                            self.is_misting = True
-                            self.last_mister_start = datetime.now(ZoneInfo("localtime"))
-                            self.state_manager.record_mister_start(self.last_mister_start)
+                            # Update state after successful valve action
+                            with self._state_lock:
+                                self.is_misting = True
+                                self.last_mister_start = datetime.now(ZoneInfo("localtime"))
+                                self.state_manager.record_mister_start(self.last_mister_start)
                             logger.info(f"✅ Mister started successfully for {self.config.mister_duration_seconds}s")
                         else:
                             logger.error("❌ Failed to start mister")
                     
-                    elif self.should_stop_misting(reading):
+                    elif should_stop:
+                        # Calculate stop reason
                         reason = []
                         if reading.temperature < self.config.temperature_threshold_low:
                             reason.append("temp cooled")
                         if reading.humidity > self.config.humidity_threshold_high:
                             reason.append("humidity increased")
-                        if self.last_mister_start:
-                            runtime = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
-                            if runtime >= self.config.mister_duration_seconds:
-                                reason.append("max duration")
+                        # Check max duration - capture time inside lock for consistency
+                        with self._state_lock:
+                            if self.last_mister_start:
+                                runtime = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
+                                if runtime >= self.config.mister_duration_seconds:
+                                    reason.append("max duration")
                         
                         logger.info(f"💧 STOPPING MISTER ({', '.join(reason)}) - Temp: {reading.temperature:.1f}°F, Humidity: {reading.humidity}%")
                         
                         if self.rachio.stop_watering(self.valve_id):
-                            self.is_misting = False
+                            # Update state after successful valve action
+                            with self._state_lock:
+                                self.is_misting = False
                             logger.info("✅ Mister stopped successfully")
                         else:
                             logger.error("❌ Failed to stop mister")
                     
                     else:
-                        # Status reporting
+                        # Status reporting (thread-safe reads)
                         status_parts = []
                         
-                        if self.is_misting:
-                            if self.last_mister_start:
-                                runtime = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
+                        with self._state_lock:
+                            is_misting = self.is_misting
+                            last_mister_start = self.last_mister_start
+                        
+                        if is_misting:
+                            if last_mister_start:
+                                runtime = (datetime.now(ZoneInfo("localtime")) - last_mister_start).total_seconds()
                                 remaining = self.config.mister_duration_seconds - runtime
                                 status_parts.append(f"💦 MISTING ({remaining:.0f}s left)")
                             else:
@@ -176,8 +208,8 @@ class FinalMisterController:
                                 status_parts.append("✅ COMFORTABLE")
                             
                             # Cooldown info
-                            if self.last_mister_start:
-                                cooldown_elapsed = (datetime.now(ZoneInfo("localtime")) - self.last_mister_start).total_seconds()
+                            if last_mister_start:
+                                cooldown_elapsed = (datetime.now(ZoneInfo("localtime")) - last_mister_start).total_seconds()
                                 if cooldown_elapsed < self.config.cooldown_seconds:
                                     cooldown_remaining = self.config.cooldown_seconds - cooldown_elapsed
                                     status_parts.append(f"⏰ COOLDOWN ({cooldown_remaining:.0f}s)")
@@ -191,7 +223,12 @@ class FinalMisterController:
                 
             except KeyboardInterrupt:
                 logger.info("\n🛑 Shutting down...")
-                if self.is_misting:
+                # Thread-safe read of misting state for shutdown
+                # Note: It's safe to release lock before stopping valve since we're shutting down
+                # and no other thread will modify state after this point
+                with self._state_lock:
+                    is_misting = self.is_misting
+                if is_misting:
                     logger.info("Stopping mister before exit...")
                     self.rachio.stop_watering(self.valve_id)
                 self.state_manager.graceful_shutdown()
