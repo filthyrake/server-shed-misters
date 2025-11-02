@@ -1,20 +1,21 @@
-# Override file for development
-# This file is automatically used by docker-compose when present
-
 version: '3.8'
 
 services:
   mister-controller:
-    # For development, mount the source code
+    # Development overrides
     volumes:
-      - .:/app
+      # Mount source code for hot reload
+      - ./:/app:ro
       - mister-data:/app/data
-    # Enable auto-reload for development
+    
+    # Development command with reload
     command: ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-    # Add development environment variables if needed
+    
+    # More verbose logging for development
     environment:
-      - PYTHONUNBUFFERED=1
-      # Development: Allow env vars as fallback when secrets not configured
-      - SWITCHBOT_TOKEN=${SWITCHBOT_TOKEN:-}
-      - SWITCHBOT_SECRET=${SWITCHBOT_SECRET:-}
-      - RACHIO_API_TOKEN=${RACHIO_API_TOKEN:-}
+      - LOG_LEVEL=DEBUG
+    
+    # Shorter health check intervals for faster feedback
+    healthcheck:
+      interval: 10s
+      timeout: 5s
