@@ -47,7 +47,9 @@ class ConfigValidator:
     MIN_MISTER_DURATION = 60  # 1 minute minimum
     MAX_MISTER_DURATION = 7200  # 2 hours maximum
     MIN_CHECK_INTERVAL = 10  # 10 seconds minimum
+    MAX_CHECK_INTERVAL = 3600  # 1 hour maximum (prevent excessive API calls)
     MIN_COOLDOWN = 60  # 1 minute minimum
+    MAX_COOLDOWN = 86400  # 24 hours maximum
     
     @staticmethod
     def validate_config(config: MisterConfig) -> List[ValidationIssue]:
