@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import logging
+import requests
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -172,9 +173,70 @@ class MisterControllerState:
             last_mister_start=self.last_mister_start
         )
     
+    def _emergency_stop_with_retries(self) -> bool:
+        """
+        Attempt to stop the valve with retry logic for hardware safety.
+        Returns True if successful, False if all retries failed.
+        """
+        MAX_RETRY_ATTEMPTS = 3
+        valve_stopped = False
+        
+        try:
+            if self.rachio.stop_watering(self.valve_id):
+                with self._state_lock:
+                    self.is_misting = False
+                    self._record_valve_action()
+                logger.info("Emergency valve stop successful")
+                valve_stopped = True
+            else:
+                raise Exception("stop_watering returned False")
+        except Exception as stop_error:
+            logger.critical(f"FAILED TO STOP VALVE IN EMERGENCY: {stop_error}")
+            # Retry with exponential backoff: 1s, 2s, 4s
+            for retry in range(MAX_RETRY_ATTEMPTS):
+                logger.warning(f"Emergency stop retry attempt {retry + 1}/{MAX_RETRY_ATTEMPTS}")
+                self.stop_event.wait(2 ** retry)  # 2^0=1s, 2^1=2s, 2^2=4s
+                try:
+                    if self.rachio.stop_watering(self.valve_id):
+                        with self._state_lock:
+                            self.is_misting = False
+                            self._record_valve_action()
+                        logger.info(f"Emergency valve stop successful on retry {retry + 1}")
+                        valve_stopped = True
+                        break
+                except Exception as retry_error:
+                    logger.critical(f"Retry {retry + 1} failed: {retry_error}")
+            
+            if not valve_stopped:
+                logger.critical("ALL EMERGENCY STOP RETRIES FAILED - MANUAL INTERVENTION REQUIRED")
+        
+        return valve_stopped
+    
+    def _enter_safe_mode(self, safe_mode_wait_seconds: int):
+        """
+        Enter safe mode: stop valve if misting and wait before retrying.
+        """
+        logger.critical("Too many consecutive errors, entering safe mode")
+        
+        # Thread-safe check and emergency stop if misting
+        with self._state_lock:
+            is_misting = self.is_misting
+        
+        if is_misting:
+            logger.warning("Emergency stop: shutting off valve")
+            self._emergency_stop_with_retries()
+        
+        # Longer backoff in safe mode (5 minutes)
+        logger.info(f"Safe mode: waiting {safe_mode_wait_seconds} seconds before retry")
+        self.stop_event.wait(safe_mode_wait_seconds)
+    
     def controller_loop(self):
         """Main controller loop running in background thread"""
         logger.info("Controller loop started")
+        
+        consecutive_errors = 0
+        MAX_CONSECUTIVE_ERRORS = 5
+        SAFE_MODE_WAIT_SECONDS = 300
         
         while not self.stop_event.is_set():
             try:
@@ -229,10 +291,29 @@ class MisterControllerState:
                     
                 # Wait for next check
                 self.stop_event.wait(self.config.check_interval_seconds)
+                consecutive_errors = 0  # Reset on success
                 
+            except requests.RequestException as e:
+                consecutive_errors += 1
+                logger.error(f"API error ({consecutive_errors}/{MAX_CONSECUTIVE_ERRORS}): {e}")
+                
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                    self._enter_safe_mode(SAFE_MODE_WAIT_SECONDS)
+                    consecutive_errors = 0  # Reset after safe mode wait
+                else:
+                    # Normal backoff
+                    self.stop_event.wait(self.config.check_interval_seconds)
+                    
             except Exception as e:
-                logger.error(f"Controller loop error: {e}")
-                self.stop_event.wait(self.config.check_interval_seconds)
+                consecutive_errors += 1
+                logger.critical(f"Unexpected error in controller loop ({consecutive_errors}/{MAX_CONSECUTIVE_ERRORS}): {e}", exc_info=True)
+                
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                    self._enter_safe_mode(SAFE_MODE_WAIT_SECONDS)
+                    consecutive_errors = 0  # Reset after safe mode wait
+                else:
+                    # Normal backoff
+                    self.stop_event.wait(self.config.check_interval_seconds)
         
         logger.info("Controller loop stopped")
     
