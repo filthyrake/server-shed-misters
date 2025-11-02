@@ -35,8 +35,20 @@ class FinalMisterController:
         self.hub2_device_id = os.environ.get("HUB2_DEVICE_ID")
         self.valve_id = os.environ.get("RACHIO_VALVE_ID")
         
-        if not all([self.hub2_device_id, self.valve_id]):
-            raise ValueError("Missing device IDs - check HUB2_DEVICE_ID and RACHIO_VALVE_ID in .env")
+        # Validate device IDs exist
+        if not self.hub2_device_id:
+            raise ValueError(
+                "HUB2_DEVICE_ID is required. Run tools/find_devices.py to discover your device ID"
+            )
+        
+        if not self.valve_id:
+            raise ValueError(
+                "RACHIO_VALVE_ID is required. Run tools/find_devices.py to discover your valve ID"
+            )
+        
+        # Validate device ID format (basic sanity check)
+        if len(self.hub2_device_id) < 10 or not self.hub2_device_id.replace('-', '').isalnum():
+            logger.warning(f"HUB2_DEVICE_ID format looks suspicious: {self.hub2_device_id}")
         
         # Configuration
         self.config = MisterConfig(
@@ -55,6 +67,13 @@ class FinalMisterController:
         
         if ConfigValidator.has_critical_issues(validation_issues):
             raise ValueError("Configuration validation failed with critical errors")
+        
+        # Test connection to SwitchBot Hub 2 on startup
+        logger.info("Testing SwitchBot Hub 2 connection...")
+        test_reading = self.switchbot.get_hub2_data(self.hub2_device_id)
+        if not test_reading:
+            raise ValueError(f"Cannot connect to SwitchBot Hub 2 with ID: {self.hub2_device_id}")
+        logger.info(f"✓ SwitchBot Hub 2 connected: {test_reading.temperature:.1f}°F, {test_reading.humidity}%")
         
         # Initialize state manager for persistence
         self.state_manager = StateManager()

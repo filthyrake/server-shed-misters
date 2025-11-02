@@ -107,6 +107,21 @@ class MisterControllerState:
             self.hub2_device_id = os.environ.get("HUB2_DEVICE_ID")
             self.valve_id = os.environ.get("RACHIO_VALVE_ID")
             
+            # Validate device IDs exist
+            if not self.hub2_device_id:
+                raise ValueError(
+                    "HUB2_DEVICE_ID is required. Run tools/find_devices.py to discover your device ID"
+                )
+            
+            if not self.valve_id:
+                raise ValueError(
+                    "RACHIO_VALVE_ID is required. Run tools/find_devices.py to discover your valve ID"
+                )
+            
+            # Validate device ID format (basic sanity check)
+            if len(self.hub2_device_id) < 10 or not self.hub2_device_id.replace('-', '').isalnum():
+                logger.warning(f"HUB2_DEVICE_ID format looks suspicious: {self.hub2_device_id}")
+            
             self.config = MisterConfig(
                 temperature_threshold_high=safe_get_env_float("TEMP_HIGH", 95.0, min_val=ConfigValidator.MIN_TEMP, max_val=ConfigValidator.MAX_TEMP),
                 temperature_threshold_low=safe_get_env_float("TEMP_LOW", 95.0, min_val=ConfigValidator.MIN_TEMP, max_val=ConfigValidator.MAX_TEMP),
@@ -123,6 +138,13 @@ class MisterControllerState:
             
             if ConfigValidator.has_critical_issues(validation_issues):
                 raise ValueError("Configuration validation failed with critical errors")
+            
+            # Test connection to SwitchBot Hub 2 on startup
+            logger.info("Testing SwitchBot Hub 2 connection...")
+            test_reading = self.switchbot.get_hub2_data(self.hub2_device_id)
+            if not test_reading:
+                raise ValueError(f"Cannot connect to SwitchBot Hub 2 with ID: {self.hub2_device_id}")
+            logger.info(f"✓ SwitchBot Hub 2 connected: {test_reading.temperature:.1f}°F, {test_reading.humidity}%")
             
             logger.info("APIs initialized successfully")
             
