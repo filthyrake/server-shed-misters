@@ -145,6 +145,10 @@ class MisterControllerState:
         self._last_valve_action_time = time.time()
     
     def should_start_misting(self, reading: SensorReading) -> bool:
+        """
+        Thread-safe wrapper for decision engine.
+        MUST be called from within _state_lock to ensure consistent state reads.
+        """
         return MistingDecisionEngine.should_start_misting(
             reading=reading,
             config=self.config,
@@ -154,6 +158,10 @@ class MisterControllerState:
         )
     
     def should_stop_misting(self, reading: SensorReading) -> bool:
+        """
+        Thread-safe wrapper for decision engine.
+        MUST be called from within _state_lock to ensure consistent state reads.
+        """
         return MistingDecisionEngine.should_stop_misting(
             reading=reading,
             config=self.config,

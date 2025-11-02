@@ -100,6 +100,10 @@ class FinalMisterController:
         return True
     
     def should_start_misting(self, reading: SensorReading) -> bool:
+        """
+        Thread-safe wrapper for decision engine.
+        MUST be called from within _state_lock to ensure consistent state reads.
+        """
         return MistingDecisionEngine.should_start_misting(
             reading=reading,
             config=self.config,
@@ -109,6 +113,10 @@ class FinalMisterController:
         )
     
     def should_stop_misting(self, reading: SensorReading) -> bool:
+        """
+        Thread-safe wrapper for decision engine.
+        MUST be called from within _state_lock to ensure consistent state reads.
+        """
         return MistingDecisionEngine.should_stop_misting(
             reading=reading,
             config=self.config,
@@ -212,6 +220,9 @@ class FinalMisterController:
                 
             except KeyboardInterrupt:
                 logger.info("\n🛑 Shutting down...")
+                # Thread-safe read of misting state for shutdown
+                # Note: It's safe to release lock before stopping valve since we're shutting down
+                # and no other thread will modify state after this point
                 with self._state_lock:
                     is_misting = self.is_misting
                 if is_misting:
