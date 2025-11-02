@@ -46,9 +46,12 @@ class FinalMisterController:
                 "RACHIO_VALVE_ID is required. Run tools/find_devices.py to discover your valve ID"
             )
         
-        # Validate device ID format (basic sanity check)
-        if len(self.hub2_device_id) < 10 or not self.hub2_device_id.replace('-', '').isalnum():
+        # Validate device ID format (basic sanity check for alphanumeric with hyphens)
+        if len(self.hub2_device_id) < ConfigValidator.MIN_DEVICE_ID_LENGTH or not self.hub2_device_id.replace('-', '').isalnum():
             logger.warning(f"HUB2_DEVICE_ID format looks suspicious: {self.hub2_device_id}")
+        
+        if len(self.valve_id) < ConfigValidator.MIN_DEVICE_ID_LENGTH or not self.valve_id.replace('-', '').isalnum():
+            logger.warning(f"RACHIO_VALVE_ID format looks suspicious: {self.valve_id}")
         
         # Configuration
         self.config = MisterConfig(
