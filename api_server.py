@@ -837,8 +837,42 @@ async def validate_configuration():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "timestamp": datetime.now(ZoneInfo("localtime")).isoformat()}
+    """Comprehensive health check endpoint"""
+    health_status = {
+        "status": "healthy",
+        "timestamp": datetime.now(ZoneInfo("localtime")).isoformat(),
+        "checks": {}
+    }
+    
+    # Check if controller thread is alive
+    if state.is_running:
+        thread_alive = state.controller_thread and state.controller_thread.is_alive()
+        health_status["checks"]["controller_thread"] = {
+            "status": "ok" if thread_alive else "error",
+            "running": thread_alive
+        }
+        if not thread_alive:
+            health_status["status"] = "degraded"
+    
+    # Check last sensor reading time
+    if state.last_reading_time:
+        age_seconds = (datetime.now(ZoneInfo("localtime")) - state.last_reading_time).total_seconds()
+        max_age = state.config.check_interval_seconds * 3  # Allow 3 missed checks
+        health_status["checks"]["sensor_data"] = {
+            "status": "ok" if age_seconds < max_age else "stale",
+            "age_seconds": age_seconds,
+            "last_reading": state.last_reading_time.isoformat()
+        }
+        if age_seconds >= max_age:
+            health_status["status"] = "degraded"
+    else:
+        health_status["checks"]["sensor_data"] = {"status": "no_data"}
+        health_status["status"] = "degraded"
+    
+    # Return appropriate status code
+    status_code = 200 if health_status["status"] == "healthy" else 503
+    
+    return JSONResponse(content=health_status, status_code=status_code)
 
 if __name__ == "__main__":
     import uvicorn
