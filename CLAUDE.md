@@ -135,7 +135,10 @@ The system is designed to run as a systemd service with Docker Compose, providin
 
 ### Monitoring
 Built-in monitoring through:
-- `/health` endpoint for health checks
+- `/health` endpoint - Comprehensive health checks:
+  - Controller thread aliveness monitoring
+  - Sensor data freshness validation (3x check interval threshold)
+  - Returns HTTP 200 (healthy) or 503 (degraded) for proper orchestration
 - State persistence tracks crash vs. graceful shutdown
 - Comprehensive logging with rotation
 
