@@ -53,6 +53,13 @@ def _create_retry_session(allowed_methods: List[str]) -> requests.Session:
     """
     Create a requests Session with retry strategy and exponential backoff.
     
+    Retry behavior: With total=3 and backoff_factor=2, requests will be retried
+    up to 3 times with delays of 2s, 4s, and 8s between attempts (exponential).
+    This means a failing request could take up to 14 seconds before giving up.
+    
+    For systems controlling physical hardware (water valves), this ensures
+    transient network issues are handled gracefully while avoiding indefinite hangs.
+    
     Args:
         allowed_methods: HTTP methods to retry (e.g., ["GET", "POST"])
     
@@ -82,7 +89,8 @@ class RateLimitedAPIMixin:
         Args:
             min_request_interval: Minimum seconds between API calls (default: 0.5)
         """
-        self._last_request_time = 0
+        # Initialize to allow first request immediately
+        self._last_request_time = time.time() - min_request_interval
         self._min_request_interval = min_request_interval
         self._rate_limit_lock = threading.Lock()
     
@@ -102,8 +110,9 @@ class SwitchBotAPI(RateLimitedAPIMixin):
         self.base_url = "https://api.switch-bot.com"
         self.api_version = "v1.1"
         
-        # Rate limiting - SwitchBot allows 10,000 calls/day (~7 calls/minute)
-        # Use 500ms interval to stay well under limit
+        # Rate limiting - SwitchBot allows 10,000 calls/day (~6.94 calls/minute)
+        # Using 500ms interval allows 120 calls/minute, well under daily limit
+        # At CHECK_INTERVAL=60s, actual rate is ~1 call/minute in normal operation
         self._init_rate_limiting(min_request_interval=0.5)
         
         # Retry strategy with exponential backoff
