@@ -138,8 +138,11 @@ echo "0 2 * * * /opt/mister-controller/scripts/backup.sh" | sudo crontab -
 ### Health Checks
 
 The system includes multiple health checks:
-- HTTP health endpoint (`/health`)
-- Docker container health checks
+- **HTTP health endpoint** (`/health`) - Comprehensive health monitoring:
+  - Controller thread aliveness check
+  - Sensor data freshness check (fails if no data for 3x check interval)
+  - Returns HTTP 200 (healthy) or 503 (degraded) with detailed status
+- Docker container health checks (uses `/health` endpoint)
 - systemd service monitoring
 - Automatic restart on failure
 

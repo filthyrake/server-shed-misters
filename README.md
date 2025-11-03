@@ -185,6 +185,10 @@ The web UI provides:
 - **System controls** - Pause, resume, start, stop
 - **Configuration display** - Current thresholds and timing
 - **System stats** - Uptime, restart count, crash detection
+- **Health monitoring** - `/health` endpoint with comprehensive checks:
+  - Controller thread aliveness
+  - Sensor data freshness (3x check interval)
+  - Returns HTTP 200 (healthy) or 503 (degraded)
 
 ## Production Deployment
 

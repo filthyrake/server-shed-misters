@@ -837,8 +837,56 @@ async def validate_configuration():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "timestamp": datetime.now(ZoneInfo("localtime")).isoformat()}
+    """Comprehensive health check endpoint"""
+    health_status = {
+        "status": "healthy",
+        "timestamp": datetime.now(ZoneInfo("localtime")).isoformat(),
+        "checks": {}
+    }
+    
+    # Acquire lock to safely read state variables
+    with state._state_lock:
+        # Check if controller thread is alive
+        if state.is_running:
+            thread_alive = state.controller_thread and state.controller_thread.is_alive()
+            health_status["checks"]["controller_thread"] = {
+                "status": "ok" if thread_alive else "error",
+                "running": thread_alive
+            }
+            if not thread_alive:
+                health_status["status"] = "degraded"
+        else:
+            # Controller is not running
+            health_status["checks"]["controller_thread"] = {
+                "status": "stopped",
+                "running": False
+            }
+            health_status["status"] = "degraded"
+        
+        # Capture last sensor reading time and check_interval_seconds inside lock
+        last_reading_time = state.last_reading_time
+        check_interval_seconds = state.config.check_interval_seconds
+    
+    # Check last sensor reading time outside the lock
+    if last_reading_time:
+        age_seconds = (datetime.now(ZoneInfo("localtime")) - last_reading_time).total_seconds()
+        age_seconds = max(0, age_seconds)  # Ensure non-negative in case of clock changes
+        max_age = check_interval_seconds * 3  # Allow 3 missed checks
+        health_status["checks"]["sensor_data"] = {
+            "status": "ok" if age_seconds < max_age else "stale",
+            "age_seconds": age_seconds,
+            "last_reading": last_reading_time.isoformat()
+        }
+        if age_seconds >= max_age:
+            health_status["status"] = "degraded"
+    else:
+        health_status["checks"]["sensor_data"] = {"status": "no_data"}
+        health_status["status"] = "degraded"
+    
+    # Return appropriate status code
+    status_code = 200 if health_status["status"] == "healthy" else 503
+    
+    return JSONResponse(content=health_status, status_code=status_code)
 
 if __name__ == "__main__":
     import uvicorn
