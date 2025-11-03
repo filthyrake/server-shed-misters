@@ -7,6 +7,8 @@ import hmac
 import hashlib
 import base64
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 import logging
@@ -53,6 +55,30 @@ class SwitchBotAPI:
         self.base_url = "https://api.switch-bot.com"
         self.api_version = "v1.1"
         
+        # Rate limiting - SwitchBot allows 10,000 calls/day (~7 calls/minute)
+        # Use 500ms interval to stay well under limit
+        self._last_request_time = 0
+        self._min_request_interval = 0.5  # 500ms between requests
+        
+        # Retry strategy with exponential backoff
+        self.session = requests.Session()
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=2,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET", "POST"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
+    
+    def _rate_limit(self):
+        """Enforce minimum interval between API calls"""
+        elapsed = time.time() - self._last_request_time
+        if elapsed < self._min_request_interval:
+            time.sleep(self._min_request_interval - elapsed)
+        self._last_request_time = time.time()
+        
     def _generate_signature(self) -> Tuple[str, str, str]:
         nonce = ""
         t = str(int(round(time.time() * 1000)))
@@ -68,6 +94,9 @@ class SwitchBotAPI:
         return sign, t, nonce
     
     def _make_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Optional[Dict]:
+        # Apply rate limiting
+        self._rate_limit()
+        
         sign, t, nonce = self._generate_signature()
         
         headers = {
@@ -82,9 +111,9 @@ class SwitchBotAPI:
         
         try:
             if method == "GET":
-                response = requests.get(url, headers=headers, timeout=(10, 30))
+                response = self.session.get(url, headers=headers, timeout=(10, 30))
             else:
-                response = requests.post(url, headers=headers, json=data, timeout=(10, 30))
+                response = self.session.post(url, headers=headers, json=data, timeout=(10, 30))
             
             response.raise_for_status()
             return response.json()
@@ -133,7 +162,33 @@ class SmartHoseTimerAPI:
         self.api_token = api_token
         self.base_url = "https://cloud-rest.rach.io"
         
+        # Rate limiting
+        self._last_request_time = 0
+        self._min_request_interval = 0.5  # 500ms between requests
+        
+        # Retry strategy with exponential backoff
+        self.session = requests.Session()
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=2,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET", "POST", "PUT"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
+    
+    def _rate_limit(self):
+        """Enforce minimum interval between API calls"""
+        elapsed = time.time() - self._last_request_time
+        if elapsed < self._min_request_interval:
+            time.sleep(self._min_request_interval - elapsed)
+        self._last_request_time = time.time()
+        
     def _make_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Optional[Dict]:
+        # Apply rate limiting
+        self._rate_limit()
+        
         headers = {
             "Authorization": f"Bearer {self.api_token}",
             "Content-Type": "application/json"
@@ -143,11 +198,11 @@ class SmartHoseTimerAPI:
         
         try:
             if method == "GET":
-                response = requests.get(url, headers=headers, timeout=(10, 30))
+                response = self.session.get(url, headers=headers, timeout=(10, 30))
             elif method == "PUT":
-                response = requests.put(url, headers=headers, json=data, timeout=(10, 30))
+                response = self.session.put(url, headers=headers, json=data, timeout=(10, 30))
             else:
-                response = requests.post(url, headers=headers, json=data, timeout=(10, 30))
+                response = self.session.post(url, headers=headers, json=data, timeout=(10, 30))
             
             if response.status_code == 200:
                 return response.json() if response.content else {"success": True}
