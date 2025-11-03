@@ -6,7 +6,10 @@ import json
 import hmac
 import hashlib
 import base64
+import threading
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 import logging
@@ -46,12 +49,74 @@ class MisterConfig:
     cooldown_seconds: int = 300
 
 
-class SwitchBotAPI:
+def _create_retry_session(allowed_methods: List[str]) -> requests.Session:
+    """
+    Create a requests Session with retry strategy and exponential backoff.
+    
+    Retry behavior: With total=3 and backoff_factor=2, requests will be retried
+    up to 3 times with delays of 2s, 4s, and 8s between attempts (exponential).
+    This means a failing request could take up to 14 seconds before giving up.
+    
+    For systems controlling physical hardware (water valves), this ensures
+    transient network issues are handled gracefully while avoiding indefinite hangs.
+    
+    Args:
+        allowed_methods: HTTP methods to retry (e.g., ["GET", "POST"])
+    
+    Returns:
+        Configured requests.Session with retry logic
+    """
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=3,
+        backoff_factor=2,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=allowed_methods
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+
+class RateLimitedAPIMixin:
+    """Mixin class providing thread-safe rate limiting for API calls."""
+    
+    def _init_rate_limiting(self, min_request_interval: float = 0.5):
+        """
+        Initialize rate limiting attributes.
+        
+        Args:
+            min_request_interval: Minimum seconds between API calls (default: 0.5)
+        """
+        # Initialize to allow first request immediately
+        self._last_request_time = time.time() - min_request_interval
+        self._min_request_interval = min_request_interval
+        self._rate_limit_lock = threading.Lock()
+    
+    def _rate_limit(self):
+        """Enforce minimum interval between API calls (thread-safe)."""
+        with self._rate_limit_lock:
+            elapsed = time.time() - self._last_request_time
+            if elapsed < self._min_request_interval:
+                time.sleep(self._min_request_interval - elapsed)
+            self._last_request_time = time.time()
+
+
+class SwitchBotAPI(RateLimitedAPIMixin):
     def __init__(self, token: str, secret: str):
         self.token = token
         self.secret = secret
         self.base_url = "https://api.switch-bot.com"
         self.api_version = "v1.1"
+        
+        # Rate limiting - SwitchBot allows 10,000 calls/day (~6.94 calls/minute)
+        # Using 500ms interval allows 120 calls/minute, well under daily limit
+        # At CHECK_INTERVAL=60s, actual rate is ~1 call/minute in normal operation
+        self._init_rate_limiting(min_request_interval=0.5)
+        
+        # Retry strategy with exponential backoff
+        self.session = _create_retry_session(allowed_methods=["GET", "POST"])
         
     def _generate_signature(self) -> Tuple[str, str, str]:
         nonce = ""
@@ -68,6 +133,9 @@ class SwitchBotAPI:
         return sign, t, nonce
     
     def _make_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Optional[Dict]:
+        # Apply rate limiting
+        self._rate_limit()
+        
         sign, t, nonce = self._generate_signature()
         
         headers = {
@@ -82,9 +150,9 @@ class SwitchBotAPI:
         
         try:
             if method == "GET":
-                response = requests.get(url, headers=headers, timeout=(10, 30))
+                response = self.session.get(url, headers=headers, timeout=(10, 30))
             else:
-                response = requests.post(url, headers=headers, json=data, timeout=(10, 30))
+                response = self.session.post(url, headers=headers, json=data, timeout=(10, 30))
             
             response.raise_for_status()
             return response.json()
@@ -121,7 +189,7 @@ class SwitchBotAPI:
         return None
 
 
-class SmartHoseTimerAPI:
+class SmartHoseTimerAPI(RateLimitedAPIMixin):
     """
     API client for Rachio Smart Hose Timer.
     
@@ -133,7 +201,16 @@ class SmartHoseTimerAPI:
         self.api_token = api_token
         self.base_url = "https://cloud-rest.rach.io"
         
+        # Rate limiting
+        self._init_rate_limiting(min_request_interval=0.5)
+        
+        # Retry strategy with exponential backoff
+        self.session = _create_retry_session(allowed_methods=["GET", "POST", "PUT"])
+        
     def _make_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Optional[Dict]:
+        # Apply rate limiting
+        self._rate_limit()
+        
         headers = {
             "Authorization": f"Bearer {self.api_token}",
             "Content-Type": "application/json"
@@ -143,11 +220,11 @@ class SmartHoseTimerAPI:
         
         try:
             if method == "GET":
-                response = requests.get(url, headers=headers, timeout=(10, 30))
+                response = self.session.get(url, headers=headers, timeout=(10, 30))
             elif method == "PUT":
-                response = requests.put(url, headers=headers, json=data, timeout=(10, 30))
+                response = self.session.put(url, headers=headers, json=data, timeout=(10, 30))
             else:
-                response = requests.post(url, headers=headers, json=data, timeout=(10, 30))
+                response = self.session.post(url, headers=headers, json=data, timeout=(10, 30))
             
             if response.status_code == 200:
                 return response.json() if response.content else {"success": True}
