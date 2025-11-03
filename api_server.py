@@ -857,6 +857,7 @@ async def health_check():
     # Check last sensor reading time
     if state.last_reading_time:
         age_seconds = (datetime.now(ZoneInfo("localtime")) - state.last_reading_time).total_seconds()
+        age_seconds = max(0, age_seconds)  # Ensure non-negative in case of clock changes
         max_age = state.config.check_interval_seconds * 3  # Allow 3 missed checks
         health_status["checks"]["sensor_data"] = {
             "status": "ok" if age_seconds < max_age else "stale",
