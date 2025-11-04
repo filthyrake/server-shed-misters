@@ -4,7 +4,6 @@ import os
 import json
 import logging
 import tempfile
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any
@@ -82,8 +81,8 @@ class StateManager:
                 f.flush()
                 os.fsync(f.fileno())  # Force write to disk
             
-            # Atomic rename (on POSIX systems)
-            shutil.move(temp_path, self.state_file)
+            # Atomic replace (on POSIX systems)
+            os.replace(temp_path, self.state_file)
             logger.debug(f"State saved to {self.state_file}")
             
         except Exception as e:
