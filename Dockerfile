@@ -20,12 +20,14 @@ COPY . .
 # Create data directory for persistent state
 RUN mkdir -p /app/data
 
-# Copy and setup entrypoint script
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash mister
+
+# Copy and setup entrypoint script (owned by root, executable by all)
 COPY docker-entrypoint.sh /
 RUN chmod +x /docker-entrypoint.sh
 
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash mister
+# Set ownership and switch to non-root user
 RUN chown -R mister:mister /app
 USER mister
 

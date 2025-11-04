@@ -12,9 +12,9 @@ USER_ID=$(id -u)
 if [ ! -w /app/data ]; then
     echo "❌ ERROR: /app/data is not writable by user $(whoami) (UID: $USER_ID)"
     echo "   Volume permissions may be incorrect"
-    echo "   Fix with: docker run --rm -v <volume-name>:/data busybox chown -R $USER_ID:$USER_ID /data"
-    echo "   Example: docker run --rm -v mister-data:/data busybox chown -R $USER_ID:$USER_ID /data"
-    echo "   Note: /data is the mount point inside the busybox container"
+    echo "   Fix with: docker run --rm -v <volume-name>:/data busybox chown -R 1000:1000 /data"
+    echo "   Example: docker run --rm -v mister-data:/data busybox chown -R 1000:1000 /data"
+    echo "   Note: /data is the mount point inside the busybox container (maps to /app/data in the application container)"
     exit 1
 fi
 
