@@ -3,6 +3,7 @@
 import os
 import json
 import logging
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any
@@ -65,13 +66,33 @@ class StateManager:
             return self.default_state.copy()
     
     def save_state(self):
-        """Save current state to persistent storage"""
+        """Save current state to persistent storage using atomic write"""
+        temp_path = None
         try:
-            with open(self.state_file, 'w') as f:
+            # Write to temporary file first
+            fd, temp_path = tempfile.mkstemp(
+                dir=self.state_file.parent,
+                prefix='.state_',
+                suffix='.tmp'
+            )
+            
+            with os.fdopen(fd, 'w') as f:
                 json.dump(self.state, f, indent=2, default=str)
+                f.flush()
+                os.fsync(f.fileno())  # Force write to disk
+            
+            # Atomic replace (on POSIX systems)
+            os.replace(temp_path, self.state_file)
             logger.debug(f"State saved to {self.state_file}")
+            
         except Exception as e:
             logger.error(f"Failed to save state: {e}")
+            # Clean up temp file if it exists
+            if temp_path:
+                try:
+                    os.unlink(temp_path)
+                except (OSError, FileNotFoundError) as cleanup_error:
+                    logger.debug(f"Failed to clean up temp file: {cleanup_error}")
     
     def update_state(self, **kwargs):
         """Update state and save immediately"""
