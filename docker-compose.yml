@@ -24,6 +24,8 @@ services:
       - CHECK_INTERVAL=${CHECK_INTERVAL:-60}
       - COOLDOWN_SECONDS=${COOLDOWN_SECONDS:-300}
     volumes:
+      # Persistent data volume - entrypoint script validates write permissions on startup
+      # If permission errors occur, see README-Production.md for troubleshooting steps
       - mister-data:/app/data
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro

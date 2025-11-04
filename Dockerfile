@@ -22,6 +22,12 @@ RUN mkdir -p /app/data
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash mister
+
+# Copy and setup entrypoint script (owned by root, executable by all)
+COPY docker-entrypoint.sh /
+RUN chmod +x /docker-entrypoint.sh
+
+# Set ownership and switch to non-root user
 RUN chown -R mister:mister /app
 USER mister
 
@@ -32,5 +38,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application
+# Set entrypoint and command
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["python", "api_server.py"]
