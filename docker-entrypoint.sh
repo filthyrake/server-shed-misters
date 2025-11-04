@@ -5,11 +5,15 @@ set -e
 
 echo "🔍 Checking /app/data volume permissions..."
 
+# Get current user ID for error messages
+USER_ID=$(id -u)
+
 # Check if data directory is writable
 if [ ! -w /app/data ]; then
-    echo "❌ ERROR: /app/data is not writable by user $(whoami)"
+    echo "❌ ERROR: /app/data is not writable by user $(whoami) (UID: $USER_ID)"
     echo "   Volume permissions may be incorrect"
-    echo "   Fix with: docker run --rm -v mister-data:/data busybox chown -R 1000:1000 /data"
+    echo "   Fix with: docker run --rm -v <volume-name>:/data busybox chown -R $USER_ID:$USER_ID /data"
+    echo "   Example: docker run --rm -v mister-data:/data busybox chown -R $USER_ID:$USER_ID /data"
     exit 1
 fi
 

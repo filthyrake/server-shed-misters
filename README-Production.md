@@ -64,8 +64,13 @@ Fix the volume permissions:
 # Stop the service
 sudo systemctl stop mister-controller
 
-# Fix permissions
+# Fix permissions (the volume name depends on your docker-compose project name)
+# For systemd deployment: mister-controller_mister-data
+# For manual deployment: mister-data or <project>_mister-data
 docker run --rm -v mister-controller_mister-data:/data busybox chown -R 1000:1000 /data
+
+# Or determine the actual volume name first
+docker volume ls | grep mister-data
 
 # Restart the service
 sudo systemctl start mister-controller
