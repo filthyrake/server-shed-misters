@@ -24,6 +24,9 @@ services:
       - CHECK_INTERVAL=${CHECK_INTERVAL:-60}
       - COOLDOWN_SECONDS=${COOLDOWN_SECONDS:-300}
     volumes:
+      # Persistent data volume - entrypoint script validates write permissions
+      # If permission errors occur, fix with:
+      # docker run --rm -v mister-data:/data busybox chown -R 1000:1000 /data
       - mister-data:/app/data
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro

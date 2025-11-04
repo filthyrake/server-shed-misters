@@ -20,6 +20,10 @@ COPY . .
 # Create data directory for persistent state
 RUN mkdir -p /app/data
 
+# Copy and setup entrypoint script
+COPY docker-entrypoint.sh /
+RUN chmod +x /docker-entrypoint.sh
+
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash mister
 RUN chown -R mister:mister /app
@@ -32,5 +36,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application
+# Set entrypoint and command
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["python", "api_server.py"]

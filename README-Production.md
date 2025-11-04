@@ -38,6 +38,39 @@ sudo /tmp/mister-controller-src/scripts/deploy.sh
 - **API**: http://your-server:8000/api/status
 - **Logs**: `journalctl -u mister-controller -f`
 
+## Docker Volume Permissions
+
+The application runs as a non-root user (UID 1000) and requires write access to the `/app/data` volume for state persistence. The Docker entrypoint script automatically validates volume permissions on startup.
+
+### First-Time Setup
+
+If deploying for the first time, the volume will be created with correct permissions automatically. However, if you pre-create the volume or experience permission errors, fix with:
+
+```bash
+# Create volume with correct permissions
+docker volume create mister-data
+docker run --rm -v mister-data:/data busybox chown -R 1000:1000 /data
+```
+
+### Troubleshooting Permission Errors
+
+If you see errors like:
+```
+❌ ERROR: /app/data is not writable by user mister
+```
+
+Fix the volume permissions:
+```bash
+# Stop the service
+sudo systemctl stop mister-controller
+
+# Fix permissions
+docker run --rm -v mister-controller_mister-data:/data busybox chown -R 1000:1000 /data
+
+# Restart the service
+sudo systemctl start mister-controller
+```
+
 ## Configuration
 
 ### Environment Variables
