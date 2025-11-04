@@ -14,10 +14,11 @@ if [ ! -w /app/data ]; then
     echo "   Volume permissions may be incorrect"
     echo "   Fix with: docker run --rm -v <volume-name>:/data busybox chown -R $USER_ID:$USER_ID /data"
     echo "   Example: docker run --rm -v mister-data:/data busybox chown -R $USER_ID:$USER_ID /data"
+    echo "   Note: /data is the mount point inside the busybox container"
     exit 1
 fi
 
-# Test write
+# Test actual write capability (catches quota/filesystem issues beyond permissions)
 if ! touch /app/data/.write_test 2>/dev/null; then
     echo "❌ ERROR: Cannot write to /app/data"
     echo "   Check volume permissions and mount configuration"
