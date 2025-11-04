@@ -68,6 +68,7 @@ class StateManager:
     
     def save_state(self):
         """Save current state to persistent storage using atomic write"""
+        temp_path = None
         try:
             # Write to temporary file first
             fd, temp_path = tempfile.mkstemp(
@@ -88,11 +89,11 @@ class StateManager:
         except Exception as e:
             logger.error(f"Failed to save state: {e}")
             # Clean up temp file if it exists
-            try:
-                if 'temp_path' in locals():
+            if temp_path:
+                try:
                     os.unlink(temp_path)
-            except:
-                pass
+                except (OSError, FileNotFoundError) as cleanup_error:
+                    logger.debug(f"Failed to clean up temp file: {cleanup_error}")
     
     def update_state(self, **kwargs):
         """Update state and save immediately"""
