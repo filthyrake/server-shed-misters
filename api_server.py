@@ -54,6 +54,10 @@ class ControlResponse(BaseModel):
     message: str
     new_status: str
 
+class ControlRequest(BaseModel):
+    """Empty request body for control endpoints - validates request structure"""
+    pass
+
 # Global controller state
 class MisterControllerState:
     def __init__(self):
@@ -767,7 +771,7 @@ async def get_status() -> StatusResponse:
 
 @app.post("/api/pause")
 @limiter.limit("5/minute")
-async def pause_controller(request: Request) -> ControlResponse:
+async def pause_controller(request: Request, body: ControlRequest = None) -> ControlResponse:
     """Pause the controller"""
     success, message = state.pause()
     return ControlResponse(
@@ -778,7 +782,7 @@ async def pause_controller(request: Request) -> ControlResponse:
 
 @app.post("/api/resume")
 @limiter.limit("5/minute")
-async def resume_controller(request: Request) -> ControlResponse:
+async def resume_controller(request: Request, body: ControlRequest = None) -> ControlResponse:
     """Resume the controller"""
     success, message = state.resume()
     return ControlResponse(
@@ -789,7 +793,7 @@ async def resume_controller(request: Request) -> ControlResponse:
 
 @app.post("/api/stop")
 @limiter.limit("5/minute")
-async def stop_controller(request: Request) -> ControlResponse:
+async def stop_controller(request: Request, body: ControlRequest = None) -> ControlResponse:
     """Stop the controller"""
     success, message = state.stop()
     return ControlResponse(
@@ -800,7 +804,7 @@ async def stop_controller(request: Request) -> ControlResponse:
 
 @app.post("/api/start")
 @limiter.limit("5/minute")
-async def start_controller(request: Request) -> ControlResponse:
+async def start_controller(request: Request, body: ControlRequest = None) -> ControlResponse:
     """Start the controller"""
     success, message = state.start()
     return ControlResponse(
