@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Tuple
 from zoneinfo import ZoneInfo
-from fastapi import FastAPI, Request, Body
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
@@ -771,7 +771,7 @@ async def get_status() -> StatusResponse:
 
 @app.post("/api/pause")
 @limiter.limit("5/minute")
-async def pause_controller(request: Request, body: ControlRequest = Body(None)) -> ControlResponse:
+async def pause_controller(request: Request, body: Optional[ControlRequest] = None) -> ControlResponse:
     """Pause the controller"""
     success, message = state.pause()
     return ControlResponse(
@@ -782,7 +782,7 @@ async def pause_controller(request: Request, body: ControlRequest = Body(None)) 
 
 @app.post("/api/resume")
 @limiter.limit("5/minute")
-async def resume_controller(request: Request, body: ControlRequest = Body(None)) -> ControlResponse:
+async def resume_controller(request: Request, body: Optional[ControlRequest] = None) -> ControlResponse:
     """Resume the controller"""
     success, message = state.resume()
     return ControlResponse(
@@ -793,7 +793,7 @@ async def resume_controller(request: Request, body: ControlRequest = Body(None))
 
 @app.post("/api/stop")
 @limiter.limit("5/minute")
-async def stop_controller(request: Request, body: ControlRequest = Body(None)) -> ControlResponse:
+async def stop_controller(request: Request, body: Optional[ControlRequest] = None) -> ControlResponse:
     """Stop the controller"""
     success, message = state.stop()
     return ControlResponse(
@@ -804,7 +804,7 @@ async def stop_controller(request: Request, body: ControlRequest = Body(None)) -
 
 @app.post("/api/start")
 @limiter.limit("5/minute")
-async def start_controller(request: Request, body: ControlRequest = Body(None)) -> ControlResponse:
+async def start_controller(request: Request, body: Optional[ControlRequest] = None) -> ControlResponse:
     """Start the controller"""
     success, message = state.start()
     return ControlResponse(
