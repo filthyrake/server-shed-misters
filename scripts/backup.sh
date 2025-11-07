@@ -66,15 +66,18 @@ fi
 
 # Check backup size (use appropriate stat command based on OS)
 if command -v stat > /dev/null 2>&1; then
+    # Try GNU stat first (Linux)
     if stat --version 2>&1 | grep -q GNU; then
-        # GNU stat (Linux)
         BACKUP_SIZE=$(stat -c%s "$BACKUP_DIR/$BACKUP_FILE")
+    # Otherwise try BSD stat (macOS)
+    elif stat -f%z "$BACKUP_DIR/$BACKUP_FILE" > /dev/null 2>&1; then
+        BACKUP_SIZE=$(stat -f%z "$BACKUP_DIR/$BACKUP_FILE")
     else
-        # BSD stat (macOS)
-        BACKUP_SIZE=$(stat -f%z "$BACKUP_DIR/$BACKUP_FILE" 2>/dev/null || stat -c%s "$BACKUP_DIR/$BACKUP_FILE")
+        # Fallback if neither works
+        BACKUP_SIZE=0
     fi
     
-    if [ "$BACKUP_SIZE" -lt 1000 ]; then
+    if [ "$BACKUP_SIZE" -gt 0 ] && [ "$BACKUP_SIZE" -lt 1000 ]; then
         echo "⚠️  Warning: Backup file is suspiciously small ($BACKUP_SIZE bytes)"
     fi
 fi
