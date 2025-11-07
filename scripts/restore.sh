@@ -34,7 +34,7 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-# Determine volume name (try auto-detection, fallback to default)
+# Use expected/default volume name for data persistence
 VOLUME_NAME="mister-controller_mister-data"
 if ! docker volume inspect "$VOLUME_NAME" > /dev/null 2>&1; then
     echo "⚠️  Warning: Volume $VOLUME_NAME not found"
@@ -46,6 +46,8 @@ if ! docker volume inspect "$VOLUME_NAME" > /dev/null 2>&1; then
     fi
     echo ""
     echo "💡 Creating volume $VOLUME_NAME..."
+    echo "   Note: In restore scenarios, it's safe to create a new volume."
+    echo "   The backup data will be restored into this volume."
     docker volume create "$VOLUME_NAME"
 fi
 

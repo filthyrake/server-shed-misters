@@ -16,7 +16,7 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-# Determine volume name (try auto-detection, fallback to default)
+# Set expected Docker volume name (change if your docker-compose project name differs)
 VOLUME_NAME="mister-controller_mister-data"
 if ! docker volume inspect "$VOLUME_NAME" > /dev/null 2>&1; then
     echo "❌ Volume $VOLUME_NAME not found"
@@ -81,7 +81,10 @@ if command -v stat > /dev/null 2>&1; then
         BACKUP_SIZE=$(stat -f%z "$BACKUP_FILE_PATH")
     fi
     
-    if [ "$BACKUP_SIZE" -gt 0 ] && [ "$BACKUP_SIZE" -lt "$MIN_BACKUP_SIZE" ]; then
+    if [ "$BACKUP_SIZE" -eq 0 ]; then
+        echo "❌ Backup file is zero bytes or size could not be determined. Backup may have failed."
+        exit 1
+    elif [ "$BACKUP_SIZE" -lt "$MIN_BACKUP_SIZE" ]; then
         echo "⚠️  Warning: Backup file is suspiciously small ($BACKUP_SIZE bytes)"
     fi
 fi
@@ -89,7 +92,9 @@ fi
 # Keep only last 7 backups
 echo "🧹 Cleaning old backups..."
 cd $BACKUP_DIR
-ls -t mister-controller-backup-*.tar.gz 2>/dev/null | tail -n +8 | xargs -r rm
+if ls -t mister-controller-backup-*.tar.gz 2>/dev/null | tail -n +8 | grep -q .; then
+    ls -t mister-controller-backup-*.tar.gz 2>/dev/null | tail -n +8 | xargs rm
+fi
 
 echo "✅ Backup created: $BACKUP_DIR/$BACKUP_FILE"
 echo "📁 Backup size: $(du -sh $BACKUP_DIR/$BACKUP_FILE | cut -f1)"
