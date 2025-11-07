@@ -6,8 +6,31 @@ set -e
 BACKUP_DIR="/opt/mister-controller/backups"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="mister-controller-backup-$TIMESTAMP.tar.gz"
+MIN_BACKUP_SIZE=1000  # Minimum expected backup size in bytes
 
 echo "💾 Creating backup of Mister Controller..."
+
+# Check if Docker is running
+if ! docker info > /dev/null 2>&1; then
+    echo "❌ Docker is not running"
+    exit 1
+fi
+
+# Set expected Docker volume name (change if your docker-compose project name differs)
+VOLUME_NAME="mister-controller_mister-data"
+if ! docker volume inspect "$VOLUME_NAME" > /dev/null 2>&1; then
+    echo "❌ Volume $VOLUME_NAME not found"
+    echo "Available volumes:"
+    if docker volume ls | grep -q mister; then
+        docker volume ls | grep mister
+    else
+        echo "  No mister volumes found"
+    fi
+    echo ""
+    echo "💡 Tip: Volume name depends on docker-compose project name."
+    echo "   Check with: docker volume ls | grep mister"
+    exit 1
+fi
 
 # Create backup directory
 mkdir -p $BACKUP_DIR
@@ -22,7 +45,7 @@ cp /opt/mister-controller/.env $TEMP_BACKUP/
 
 # Export Docker volume data
 echo "📦 Backing up persistent data..."
-docker run --rm -v mister-controller_mister-data:/data -v $TEMP_BACKUP:/backup busybox tar czf /backup/data.tar.gz -C /data .
+docker run --rm -v $VOLUME_NAME:/data -v $TEMP_BACKUP:/backup busybox tar czf /backup/data.tar.gz -C /data .
 
 # Export Docker image
 echo "🐳 Backing up Docker image..."
@@ -40,12 +63,40 @@ tar czf "$BACKUP_DIR/$BACKUP_FILE" -C /tmp "mister-backup-$TIMESTAMP"
 # Clean up
 rm -rf $TEMP_BACKUP
 
+# Verify backup was created and is not empty
+if [ ! -f "$BACKUP_DIR/$BACKUP_FILE" ]; then
+    echo "❌ Backup file was not created"
+    exit 1
+fi
+
+# Check backup size (use appropriate stat command based on OS)
+BACKUP_FILE_PATH="$BACKUP_DIR/$BACKUP_FILE"
+if command -v stat > /dev/null 2>&1; then
+    BACKUP_SIZE=0
+    # Try GNU stat first (Linux)
+    if stat --version > /dev/null 2>&1 && stat --version 2>&1 | grep -q GNU; then
+        BACKUP_SIZE=$(stat -c%s "$BACKUP_FILE_PATH")
+    # Otherwise try BSD stat (macOS)
+    elif stat -f%z "$BACKUP_FILE_PATH" > /dev/null 2>&1; then
+        BACKUP_SIZE=$(stat -f%z "$BACKUP_FILE_PATH")
+    fi
+    
+    if [ "$BACKUP_SIZE" -eq 0 ]; then
+        echo "❌ Backup file is zero bytes or size could not be determined. Backup may have failed."
+        exit 1
+    elif [ "$BACKUP_SIZE" -lt "$MIN_BACKUP_SIZE" ]; then
+        echo "⚠️  Warning: Backup file is suspiciously small ($BACKUP_SIZE bytes)"
+    fi
+fi
+
 # Keep only last 7 backups
 echo "🧹 Cleaning old backups..."
 cd $BACKUP_DIR
-ls -t mister-controller-backup-*.tar.gz | tail -n +8 | xargs -r rm
+if ls -t mister-controller-backup-*.tar.gz 2>/dev/null | tail -n +8 | grep -q .; then
+    ls -t mister-controller-backup-*.tar.gz 2>/dev/null | tail -n +8 | xargs rm
+fi
 
 echo "✅ Backup created: $BACKUP_DIR/$BACKUP_FILE"
 echo "📁 Backup size: $(du -sh $BACKUP_DIR/$BACKUP_FILE | cut -f1)"
 echo "🗂️ Available backups:"
-ls -lah $BACKUP_DIR/mister-controller-backup-*.tar.gz
+ls -lah $BACKUP_DIR/mister-controller-backup-*.tar.gz 2>/dev/null || echo "  Current backup is the only one"

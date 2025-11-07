@@ -28,6 +28,29 @@ if [ ! -f "$BACKUP_FILE" ]; then
     exit 1
 fi
 
+# Check if Docker is running
+if ! docker info > /dev/null 2>&1; then
+    echo "❌ Docker is not running"
+    exit 1
+fi
+
+# Use expected/default volume name for data persistence
+VOLUME_NAME="mister-controller_mister-data"
+if ! docker volume inspect "$VOLUME_NAME" > /dev/null 2>&1; then
+    echo "⚠️  Warning: Volume $VOLUME_NAME not found"
+    echo "Available volumes:"
+    if docker volume ls | grep -q mister; then
+        docker volume ls | grep mister
+    else
+        echo "  No mister volumes found"
+    fi
+    echo ""
+    echo "💡 Creating volume $VOLUME_NAME..."
+    echo "   Note: In restore scenarios, it's safe to create a new volume."
+    echo "   The backup data will be restored into this volume."
+    docker volume create "$VOLUME_NAME"
+fi
+
 # Extract backup
 echo "📦 Extracting backup..."
 mkdir -p $TEMP_RESTORE
@@ -44,7 +67,9 @@ cp $TEMP_RESTORE/.env /opt/mister-controller/
 # Restore data volume
 echo "💾 Restoring data..."
 if [ -f "$TEMP_RESTORE/data.tar.gz" ]; then
-    docker run --rm -v mister-controller_mister-data:/data -v $TEMP_RESTORE:/backup busybox tar xzf /backup/data.tar.gz -C /data
+    docker run --rm -v $VOLUME_NAME:/data -v $TEMP_RESTORE:/backup busybox tar xzf /backup/data.tar.gz -C /data
+else
+    echo "⚠️  Warning: data.tar.gz not found in backup"
 fi
 
 # Restore Docker image
