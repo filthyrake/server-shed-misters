@@ -39,7 +39,11 @@ VOLUME_NAME="mister-controller_mister-data"
 if ! docker volume inspect "$VOLUME_NAME" > /dev/null 2>&1; then
     echo "⚠️  Warning: Volume $VOLUME_NAME not found"
     echo "Available volumes:"
-    docker volume ls | grep mister || echo "  No mister volumes found"
+    if docker volume ls | grep -q mister; then
+        docker volume ls | grep mister
+    else
+        echo "  No mister volumes found"
+    fi
     echo ""
     echo "💡 Creating volume $VOLUME_NAME..."
     docker volume create "$VOLUME_NAME"

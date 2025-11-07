@@ -6,6 +6,7 @@ set -e
 BACKUP_DIR="/opt/mister-controller/backups"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="mister-controller-backup-$TIMESTAMP.tar.gz"
+MIN_BACKUP_SIZE=1000  # Minimum expected backup size in bytes
 
 echo "💾 Creating backup of Mister Controller..."
 
@@ -20,7 +21,11 @@ VOLUME_NAME="mister-controller_mister-data"
 if ! docker volume inspect "$VOLUME_NAME" > /dev/null 2>&1; then
     echo "❌ Volume $VOLUME_NAME not found"
     echo "Available volumes:"
-    docker volume ls | grep mister || echo "  No mister volumes found"
+    if docker volume ls | grep -q mister; then
+        docker volume ls | grep mister
+    else
+        echo "  No mister volumes found"
+    fi
     echo ""
     echo "💡 Tip: Volume name depends on docker-compose project name."
     echo "   Check with: docker volume ls | grep mister"
@@ -65,19 +70,18 @@ if [ ! -f "$BACKUP_DIR/$BACKUP_FILE" ]; then
 fi
 
 # Check backup size (use appropriate stat command based on OS)
+BACKUP_FILE_PATH="$BACKUP_DIR/$BACKUP_FILE"
 if command -v stat > /dev/null 2>&1; then
+    BACKUP_SIZE=0
     # Try GNU stat first (Linux)
-    if stat --version 2>&1 | grep -q GNU; then
-        BACKUP_SIZE=$(stat -c%s "$BACKUP_DIR/$BACKUP_FILE")
+    if stat --version > /dev/null 2>&1 && stat --version 2>&1 | grep -q GNU; then
+        BACKUP_SIZE=$(stat -c%s "$BACKUP_FILE_PATH")
     # Otherwise try BSD stat (macOS)
-    elif stat -f%z "$BACKUP_DIR/$BACKUP_FILE" > /dev/null 2>&1; then
-        BACKUP_SIZE=$(stat -f%z "$BACKUP_DIR/$BACKUP_FILE")
-    else
-        # Fallback if neither works
-        BACKUP_SIZE=0
+    elif stat -f%z "$BACKUP_FILE_PATH" > /dev/null 2>&1; then
+        BACKUP_SIZE=$(stat -f%z "$BACKUP_FILE_PATH")
     fi
     
-    if [ "$BACKUP_SIZE" -gt 0 ] && [ "$BACKUP_SIZE" -lt 1000 ]; then
+    if [ "$BACKUP_SIZE" -gt 0 ] && [ "$BACKUP_SIZE" -lt "$MIN_BACKUP_SIZE" ]; then
         echo "⚠️  Warning: Backup file is suspiciously small ($BACKUP_SIZE bytes)"
     fi
 fi
