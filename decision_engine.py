@@ -49,7 +49,8 @@ class MistingDecisionEngine:
         config: MisterConfig,
         is_misting: bool,
         is_paused: bool,
-        last_mister_start: Optional[datetime]
+        last_mister_start: Optional[datetime],
+        last_mister_stop: Optional[datetime] = None
     ) -> bool:
         """
         Determine if misting should start.
@@ -67,6 +68,7 @@ class MistingDecisionEngine:
             is_misting: Whether misting is currently active
             is_paused: Whether the system is paused
             last_mister_start: Timestamp of last misting start (None if never started)
+            last_mister_stop: Timestamp of last misting stop (None if never stopped)
             
         Returns:
             True if misting should start, False otherwise
@@ -75,14 +77,17 @@ class MistingDecisionEngine:
         if is_misting or is_paused:
             return False
         
-        # Check cooldown period
-        if last_mister_start:
+        # Check cooldown period - use stop time if available, otherwise fall back to start time
+        cooldown_reference = last_mister_stop if last_mister_stop else last_mister_start
+        
+        if cooldown_reference:
             # Validate timezone awareness - if invalid, skip cooldown check (fail safe: don't start)
-            if not MistingDecisionEngine._validate_timezone_aware(last_mister_start, "last_mister_start"):
+            param_name = "last_mister_stop" if last_mister_stop else "last_mister_start"
+            if not MistingDecisionEngine._validate_timezone_aware(cooldown_reference, param_name):
                 logger.warning("Skipping cooldown check due to invalid datetime - blocking misting start as safety precaution")
                 return False
             now = datetime.now(ZoneInfo("localtime"))
-            time_since = (now - last_mister_start).total_seconds()
+            time_since = (now - cooldown_reference).total_seconds()
             if time_since < config.cooldown_seconds:
                 return False
         

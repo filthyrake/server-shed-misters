@@ -58,7 +58,6 @@ class ControlResponse(BaseModel):
 class MisterControllerState:
     def __init__(self):
         self.is_running = False
-        self.is_misting = False
         self.last_reading = None
         self.last_reading_time = None
         self.start_time = datetime.now(ZoneInfo("localtime"))
@@ -76,6 +75,8 @@ class MisterControllerState:
         self.state_manager = StateManager()
         self.is_paused = self.state_manager.is_paused()
         self.last_mister_start = self.state_manager.get_last_mister_start()
+        self.last_mister_stop = self.state_manager.get_last_mister_stop()
+        self.is_misting = self.state_manager.is_misting()
         
         # Initialize APIs
         load_dotenv()
@@ -92,6 +93,10 @@ class MisterControllerState:
         logger.info(f"System initialized - Restarts: {stats['restart_count']}, Crashes: {stats['crash_count']}")
         if self.is_paused:
             logger.info("System was paused before restart - remaining paused")
+        if self.is_misting:
+            logger.warning("System was misting before restart - treating as stopped for safety")
+            self.is_misting = False
+            self.state_manager.update_state(is_misting=False)
     
     def _setup_apis(self):
         try:
@@ -186,14 +191,15 @@ class MisterControllerState:
         """
         Wrapper for decision engine that reads current state.
         MUST be called from within _state_lock because it accesses
-        self.is_misting, self.is_paused, and self.last_mister_start.
+        self.is_misting, self.is_paused, self.last_mister_start, and self.last_mister_stop.
         """
         return MistingDecisionEngine.should_start_misting(
             reading=reading,
             config=self.config,
             is_misting=self.is_misting,
             is_paused=self.is_paused,
-            last_mister_start=self.last_mister_start
+            last_mister_start=self.last_mister_start,
+            last_mister_stop=self.last_mister_stop
         )
     
     def should_stop_misting(self, reading: SensorReading) -> bool:
@@ -221,6 +227,8 @@ class MisterControllerState:
             if self.rachio.stop_watering(self.valve_id):
                 with self._state_lock:
                     self.is_misting = False
+                    self.last_mister_stop = datetime.now(ZoneInfo("localtime"))
+                    self.state_manager.record_mister_stop(self.last_mister_stop)
                     self._record_valve_action()
                 logger.info("Emergency valve stop successful")
                 valve_stopped = True
@@ -236,6 +244,8 @@ class MisterControllerState:
                     if self.rachio.stop_watering(self.valve_id):
                         with self._state_lock:
                             self.is_misting = False
+                            self.last_mister_stop = datetime.now(ZoneInfo("localtime"))
+                            self.state_manager.record_mister_stop(self.last_mister_stop)
                             self._record_valve_action()
                         logger.info(f"Emergency valve stop successful on retry {retry + 1}")
                         valve_stopped = True
@@ -320,6 +330,8 @@ class MisterControllerState:
                                 # Update state after successful valve action
                                 with self._state_lock:
                                     self.is_misting = False
+                                    self.last_mister_stop = datetime.now(ZoneInfo("localtime"))
+                                    self.state_manager.record_mister_stop(self.last_mister_stop)
                                     self._record_valve_action()
                                 logger.info("Mister stopped successfully")
                             else:
@@ -390,6 +402,8 @@ class MisterControllerState:
                 try:
                     self.rachio.stop_watering(self.valve_id)
                     self.is_misting = False
+                    self.last_mister_stop = datetime.now(ZoneInfo("localtime"))
+                    self.state_manager.record_mister_stop(self.last_mister_stop)
                     self._record_valve_action()
                 except Exception as e:
                     logger.error(f"Emergency stop failed: {e}")

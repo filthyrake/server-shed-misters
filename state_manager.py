@@ -6,7 +6,7 @@ import logging
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,8 @@ class StateManager:
         self.default_state = {
             "is_paused": False,
             "last_mister_start": None,
+            "last_mister_stop": None,
+            "is_misting": False,
             "total_runtime_seconds": 0,
             "last_shutdown_time": None,
             "restart_count": 0,
@@ -115,8 +117,18 @@ class StateManager:
         self.update_state(is_paused=paused)
     
     def record_mister_start(self, start_time: datetime):
-        """Record when misting started"""
-        self.update_state(last_mister_start=start_time.isoformat())
+        """Record when misting started and update is_misting state"""
+        self.update_state(
+            last_mister_start=start_time.isoformat(),
+            is_misting=True
+        )
+    
+    def record_mister_stop(self, stop_time: datetime):
+        """Record when misting stopped and update is_misting state"""
+        self.update_state(
+            last_mister_stop=stop_time.isoformat(),
+            is_misting=False
+        )
     
     def get_last_mister_start(self) -> datetime:
         """Get the last mister start time, always timezone-aware"""
@@ -134,6 +146,27 @@ class StateManager:
             except Exception as e:
                 logger.error(f"Failed to parse last_mister_start: {e}")
         return None
+    
+    def get_last_mister_stop(self) -> Optional[datetime]:
+        """Get the last mister stop time, always timezone-aware"""
+        last_stop = self.state.get("last_mister_stop")
+        if last_stop:
+            try:
+                dt = datetime.fromisoformat(last_stop)
+                # Always return timezone-aware datetime in local time
+                if dt.tzinfo is None:
+                    # Assume old naive datetimes were in local time (matching historical datetime.now() behavior)
+                    logger.warning(f"Converting legacy naive datetime to timezone-aware: {last_stop}")
+                    dt = dt.replace(tzinfo=ZoneInfo("localtime"))
+                # Convert to local time if in a different timezone (or just ensure localtime)
+                return dt.astimezone(ZoneInfo("localtime"))
+            except Exception as e:
+                logger.error(f"Failed to parse last_mister_stop: {e}")
+        return None
+    
+    def is_misting(self) -> bool:
+        """Check if the system was misting before restart"""
+        return self.state.get("is_misting", False)
     
     def record_runtime(self, additional_seconds: int):
         """Add to total runtime"""

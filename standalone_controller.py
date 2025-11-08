@@ -97,13 +97,18 @@ class FinalMisterController:
         
         # State tracking - load from persistent state
         self.last_mister_start = self.state_manager.get_last_mister_start()
-        self.is_misting = False
+        self.last_mister_stop = self.state_manager.get_last_mister_stop()
+        self.is_misting = self.state_manager.is_misting()
         
         # Log restart info
         stats = self.state_manager.get_stats()
         logger.info(f"System initialized - Restarts: {stats['restart_count']}, Crashes: {stats['crash_count']}")
         if self.last_mister_start:
             logger.info(f"Restored last mister start time: {self.last_mister_start}")
+        if self.is_misting:
+            logger.warning("System was misting before restart - treating as stopped for safety")
+            self.is_misting = False
+            self.state_manager.update_state(is_misting=False)
     
     def setup(self):
         """Test connections and display configuration"""
@@ -138,14 +143,15 @@ class FinalMisterController:
         """
         Wrapper for decision engine that reads current state.
         MUST be called from within _state_lock because it accesses
-        self.is_misting and self.last_mister_start.
+        self.is_misting, self.last_mister_start, and self.last_mister_stop.
         """
         return MistingDecisionEngine.should_start_misting(
             reading=reading,
             config=self.config,
             is_misting=self.is_misting,
             is_paused=False,  # standalone controller doesn't support pause
-            last_mister_start=self.last_mister_start
+            last_mister_start=self.last_mister_start,
+            last_mister_stop=self.last_mister_stop
         )
     
     def should_stop_misting(self, reading: SensorReading) -> bool:
@@ -165,8 +171,6 @@ class FinalMisterController:
         """
         Attempt to stop the valve with retry logic for hardware safety.
         Returns True if successful, False if all retries failed.
-        Note: Only updates is_misting state; last_mister_start is intentionally not updated here,
-        as cooldown is calculated from the original start time. This is correct and safe behavior.
         """
         MAX_RETRY_ATTEMPTS = 3
         valve_stopped = False
@@ -175,6 +179,8 @@ class FinalMisterController:
             if self.rachio.stop_watering(self.valve_id):
                 with self._state_lock:
                     self.is_misting = False
+                    self.last_mister_stop = datetime.now(ZoneInfo("localtime"))
+                    self.state_manager.record_mister_stop(self.last_mister_stop)
                 logger.info("Emergency valve stop successful")
                 valve_stopped = True
             else:
@@ -189,6 +195,8 @@ class FinalMisterController:
                     if self.rachio.stop_watering(self.valve_id):
                         with self._state_lock:
                             self.is_misting = False
+                            self.last_mister_stop = datetime.now(ZoneInfo("localtime"))
+                            self.state_manager.record_mister_stop(self.last_mister_stop)
                         logger.info(f"Emergency valve stop successful on retry {retry + 1}")
                         valve_stopped = True
                         break
@@ -275,6 +283,8 @@ class FinalMisterController:
                             # Update state after successful valve action
                             with self._state_lock:
                                 self.is_misting = False
+                                self.last_mister_stop = datetime.now(ZoneInfo("localtime"))
+                                self.state_manager.record_mister_stop(self.last_mister_stop)
                             logger.info("✅ Mister stopped successfully")
                         else:
                             logger.error("❌ Failed to stop mister")
@@ -327,7 +337,11 @@ class FinalMisterController:
                     is_misting = self.is_misting
                 if is_misting:
                     logger.info("Stopping mister before exit...")
-                    self.rachio.stop_watering(self.valve_id)
+                    if self.rachio.stop_watering(self.valve_id):
+                        with self._state_lock:
+                            self.is_misting = False
+                            self.last_mister_stop = datetime.now(ZoneInfo("localtime"))
+                            self.state_manager.record_mister_stop(self.last_mister_stop)
                 self.state_manager.graceful_shutdown()
                 break
                 
