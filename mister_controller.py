@@ -79,6 +79,11 @@ def _create_retry_session(allowed_methods: List[str]) -> requests.Session:
     return session
 
 
+class CircuitBreakerOpenError(Exception):
+    """Raised when circuit breaker is open and blocking calls."""
+    pass
+
+
 class CircuitBreaker:
     """
     Simple circuit breaker for API calls to prevent repeated failures.
@@ -117,15 +122,22 @@ class CircuitBreaker:
             Result from func if successful
             
         Raises:
-            Exception: If circuit is open or function fails
+            CircuitBreakerOpenError: If circuit is open or half-open
+            Exception: If function execution fails
         """
+        # Check state and transition if needed (thread-safe)
         with self._lock:
             if self.state == "open":
                 if self.last_failure_time and time.time() - self.last_failure_time > self.timeout_seconds:
                     self.state = "half_open"
                     logger.info("Circuit breaker entering half-open state, attempting recovery")
+                    # Allow this thread to proceed for testing
                 else:
-                    raise Exception(f"Circuit breaker is open (failures: {self.failures})")
+                    raise CircuitBreakerOpenError(f"Circuit breaker is open (failures: {self.failures})")
+            elif self.state == "half_open":
+                # Only allow one test request in half-open state
+                raise CircuitBreakerOpenError(f"Circuit breaker is half-open, test in progress (failures: {self.failures})")
+            # If closed, proceed as normal
         
         try:
             result = func(*args, **kwargs)
@@ -135,6 +147,9 @@ class CircuitBreaker:
                     self.state = "closed"
                     self.failures = 0
                     logger.info("Circuit breaker closed - service recovered")
+                elif self.state == "closed":
+                    # Reset failure counter on successful call
+                    self.failures = 0
             
             return result
         except Exception as e:
@@ -364,7 +379,7 @@ class SmartHoseTimerAPI(RateLimitedAPIMixin):
         if result is None:
             if self.circuit_breaker_enabled:
                 # When circuit breaker is enabled, raise to trigger circuit breaker logic
-                raise Exception("start_watering API request failed")
+                raise Exception(f"start_watering API request failed for valve {valve_id} (duration: {duration_seconds}s)")
             else:
                 # When circuit breaker is disabled, return False for backward compatibility
                 return False
@@ -406,7 +421,7 @@ class SmartHoseTimerAPI(RateLimitedAPIMixin):
         if result is None:
             if self.circuit_breaker_enabled:
                 # When circuit breaker is enabled, raise to trigger circuit breaker logic
-                raise Exception("stop_watering API request failed")
+                raise Exception(f"stop_watering API request failed for valve {valve_id}")
             else:
                 # When circuit breaker is disabled, return False for backward compatibility
                 return False
