@@ -102,7 +102,18 @@ class MisterControllerState:
             rachio_token = creds.rachio_api_token
             
             self.switchbot = SwitchBotAPI(switchbot_token, switchbot_secret)
-            self.rachio = SmartHoseTimerAPI(rachio_token)
+            
+            # Circuit breaker configuration
+            circuit_breaker_enabled = os.environ.get("CIRCUIT_BREAKER_ENABLED", "true").lower() == "true"
+            failure_threshold = safe_get_env_int("CIRCUIT_BREAKER_FAILURE_THRESHOLD", 5, min_val=1, max_val=20)
+            timeout_seconds = safe_get_env_int("CIRCUIT_BREAKER_TIMEOUT_SECONDS", 300, min_val=60, max_val=3600)
+            
+            self.rachio = SmartHoseTimerAPI(
+                rachio_token,
+                circuit_breaker_enabled=circuit_breaker_enabled,
+                failure_threshold=failure_threshold,
+                timeout_seconds=timeout_seconds
+            )
             
             self.hub2_device_id = os.environ.get("HUB2_DEVICE_ID")
             self.valve_id = os.environ.get("RACHIO_VALVE_ID")
