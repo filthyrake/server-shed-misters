@@ -362,7 +362,12 @@ class SmartHoseTimerAPI(RateLimitedAPIMixin):
         })
         
         if result is None:
-            raise Exception("start_watering API request failed")
+            if self.circuit_breaker_enabled:
+                # When circuit breaker is enabled, raise to trigger circuit breaker logic
+                raise Exception("start_watering API request failed")
+            else:
+                # When circuit breaker is disabled, return False for backward compatibility
+                return False
         
         return True
     
@@ -399,7 +404,12 @@ class SmartHoseTimerAPI(RateLimitedAPIMixin):
         })
         
         if result is None:
-            raise Exception("stop_watering API request failed")
+            if self.circuit_breaker_enabled:
+                # When circuit breaker is enabled, raise to trigger circuit breaker logic
+                raise Exception("stop_watering API request failed")
+            else:
+                # When circuit breaker is disabled, return False for backward compatibility
+                return False
         
         return True
     
