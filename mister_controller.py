@@ -79,6 +79,76 @@ def _create_retry_session(allowed_methods: List[str]) -> requests.Session:
     return session
 
 
+class CircuitBreaker:
+    """
+    Simple circuit breaker for API calls to prevent repeated failures.
+    
+    States:
+    - closed: Normal operation, requests allowed
+    - open: Circuit is open due to failures, requests blocked
+    - half_open: Testing if service has recovered
+    """
+    
+    def __init__(self, failure_threshold: int = 5, timeout_seconds: int = 300):
+        """
+        Initialize circuit breaker.
+        
+        Args:
+            failure_threshold: Number of failures before opening circuit (default: 5)
+            timeout_seconds: Seconds to wait before attempting recovery (default: 300)
+        """
+        self.failure_threshold = failure_threshold
+        self.timeout_seconds = timeout_seconds
+        self.failures = 0
+        self.last_failure_time = None
+        self.state = "closed"  # closed, open, half_open
+        self._lock = threading.Lock()
+    
+    def call(self, func, *args, **kwargs):
+        """
+        Execute function with circuit breaker protection.
+        
+        Args:
+            func: Function to execute
+            *args: Positional arguments for func
+            **kwargs: Keyword arguments for func
+            
+        Returns:
+            Result from func if successful
+            
+        Raises:
+            Exception: If circuit is open or function fails
+        """
+        with self._lock:
+            if self.state == "open":
+                if self.last_failure_time and time.time() - self.last_failure_time > self.timeout_seconds:
+                    self.state = "half_open"
+                    logger.info("Circuit breaker entering half-open state, attempting recovery")
+                else:
+                    raise Exception(f"Circuit breaker is open (failures: {self.failures})")
+        
+        try:
+            result = func(*args, **kwargs)
+            
+            with self._lock:
+                if self.state == "half_open":
+                    self.state = "closed"
+                    self.failures = 0
+                    logger.info("Circuit breaker closed - service recovered")
+            
+            return result
+        except Exception as e:
+            with self._lock:
+                self.failures += 1
+                self.last_failure_time = time.time()
+                
+                if self.failures >= self.failure_threshold:
+                    if self.state != "open":
+                        self.state = "open"
+                        logger.error(f"Circuit breaker opened after {self.failures} failures")
+            raise
+
+
 class RateLimitedAPIMixin:
     """Mixin class providing thread-safe rate limiting for API calls."""
     
@@ -197,7 +267,17 @@ class SmartHoseTimerAPI(RateLimitedAPIMixin):
     The Smart Hose Timer uses a different API endpoint and authentication model.
     """
     
-    def __init__(self, api_token: str):
+    def __init__(self, api_token: str, circuit_breaker_enabled: bool = True,
+                 failure_threshold: int = 5, timeout_seconds: int = 300):
+        """
+        Initialize Smart Hose Timer API client.
+        
+        Args:
+            api_token: Rachio API token for authentication
+            circuit_breaker_enabled: Enable circuit breaker protection (default: True)
+            failure_threshold: Number of failures before opening circuit (default: 5)
+            timeout_seconds: Seconds to wait before retry after circuit open (default: 300)
+        """
         self.api_token = api_token
         self.base_url = "https://cloud-rest.rach.io"
         
@@ -206,6 +286,16 @@ class SmartHoseTimerAPI(RateLimitedAPIMixin):
         
         # Retry strategy with exponential backoff
         self.session = _create_retry_session(allowed_methods=["GET", "POST", "PUT"])
+        
+        # Circuit breaker for hardware failure protection
+        self.circuit_breaker_enabled = circuit_breaker_enabled
+        if circuit_breaker_enabled:
+            self.circuit_breaker = CircuitBreaker(
+                failure_threshold=failure_threshold,
+                timeout_seconds=timeout_seconds
+            )
+        else:
+            self.circuit_breaker = None
         
     def _make_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Optional[Dict]:
         # Apply rate limiting
@@ -238,25 +328,80 @@ class SmartHoseTimerAPI(RateLimitedAPIMixin):
             return None
     
     def start_watering(self, valve_id: str, duration_seconds: int) -> bool:
-        """Start watering for the specified duration"""
+        """
+        Start watering for the specified duration.
+        
+        Protected by circuit breaker to prevent repeated failures.
+        
+        Args:
+            valve_id: ID of the valve to start
+            duration_seconds: How long to water in seconds
+            
+        Returns:
+            True if successful, False otherwise
+        """
         logger.info(f"Starting valve {valve_id} for {duration_seconds} seconds")
         
+        if self.circuit_breaker_enabled and self.circuit_breaker:
+            try:
+                result = self.circuit_breaker.call(
+                    self._start_watering_impl, valve_id, duration_seconds
+                )
+                return result
+            except Exception as e:
+                logger.error(f"Circuit breaker prevented start_watering call: {e}")
+                return False
+        else:
+            return self._start_watering_impl(valve_id, duration_seconds)
+    
+    def _start_watering_impl(self, valve_id: str, duration_seconds: int) -> bool:
+        """Internal implementation of start_watering."""
         result = self._make_request("/valve/startWatering", "PUT", {
             "valveId": valve_id,
             "durationSeconds": duration_seconds
         })
         
-        return result is not None
+        if result is None:
+            raise Exception("start_watering API request failed")
+        
+        return True
     
     def stop_watering(self, valve_id: str) -> bool:
-        """Stop watering"""
+        """
+        Stop watering.
+        
+        Protected by circuit breaker to prevent repeated failures.
+        
+        Args:
+            valve_id: ID of the valve to stop
+            
+        Returns:
+            True if successful, False otherwise
+        """
         logger.info(f"Stopping valve {valve_id}")
         
+        if self.circuit_breaker_enabled and self.circuit_breaker:
+            try:
+                result = self.circuit_breaker.call(
+                    self._stop_watering_impl, valve_id
+                )
+                return result
+            except Exception as e:
+                logger.error(f"Circuit breaker prevented stop_watering call: {e}")
+                return False
+        else:
+            return self._stop_watering_impl(valve_id)
+    
+    def _stop_watering_impl(self, valve_id: str) -> bool:
+        """Internal implementation of stop_watering."""
         result = self._make_request("/valve/stopWatering", "PUT", {
             "valveId": valve_id
         })
         
-        return result is not None
+        if result is None:
+            raise Exception("stop_watering API request failed")
+        
+        return True
     
     def get_valve_status(self, valve_id: str) -> Optional[Dict]:
         """Get valve status"""

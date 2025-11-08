@@ -29,7 +29,18 @@ class FinalMisterController:
         creds = APICredentials()
         
         self.switchbot = SwitchBotAPI(creds.switchbot_token, creds.switchbot_secret)
-        self.rachio = SmartHoseTimerAPI(creds.rachio_api_token)
+        
+        # Circuit breaker configuration
+        circuit_breaker_enabled = os.environ.get("CIRCUIT_BREAKER_ENABLED", "true").lower() == "true"
+        failure_threshold = safe_get_env_int("CIRCUIT_BREAKER_FAILURE_THRESHOLD", 5, min_val=1, max_val=20)
+        timeout_seconds = safe_get_env_int("CIRCUIT_BREAKER_TIMEOUT_SECONDS", 300, min_val=60, max_val=3600)
+        
+        self.rachio = SmartHoseTimerAPI(
+            creds.rachio_api_token,
+            circuit_breaker_enabled=circuit_breaker_enabled,
+            failure_threshold=failure_threshold,
+            timeout_seconds=timeout_seconds
+        )
         
         # Device IDs
         self.hub2_device_id = os.environ.get("HUB2_DEVICE_ID")
