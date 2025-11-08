@@ -6,7 +6,7 @@ import logging
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
@@ -147,7 +147,7 @@ class StateManager:
                 logger.error(f"Failed to parse last_mister_start: {e}")
         return None
     
-    def get_last_mister_stop(self) -> datetime:
+    def get_last_mister_stop(self) -> Optional[datetime]:
         """Get the last mister stop time, always timezone-aware"""
         last_stop = self.state.get("last_mister_stop")
         if last_stop:

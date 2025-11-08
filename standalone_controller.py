@@ -107,6 +107,8 @@ class FinalMisterController:
             logger.info(f"Restored last mister start time: {self.last_mister_start}")
         if self.is_misting:
             logger.warning("System was misting before restart - treating as stopped for safety")
+            self.is_misting = False
+            self.state_manager.update_state(is_misting=False)
     
     def setup(self):
         """Test connections and display configuration"""
@@ -337,6 +339,7 @@ class FinalMisterController:
                     logger.info("Stopping mister before exit...")
                     if self.rachio.stop_watering(self.valve_id):
                         with self._state_lock:
+                            self.is_misting = False
                             self.last_mister_stop = datetime.now(ZoneInfo("localtime"))
                             self.state_manager.record_mister_stop(self.last_mister_stop)
                 self.state_manager.graceful_shutdown()

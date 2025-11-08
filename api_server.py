@@ -95,6 +95,8 @@ class MisterControllerState:
             logger.info("System was paused before restart - remaining paused")
         if self.is_misting:
             logger.warning("System was misting before restart - treating as stopped for safety")
+            self.is_misting = False
+            self.state_manager.update_state(is_misting=False)
     
     def _setup_apis(self):
         try:
